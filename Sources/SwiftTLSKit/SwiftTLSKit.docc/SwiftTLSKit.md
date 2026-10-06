@@ -69,3 +69,4 @@ Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a cli
 ### Deciding what a listener exposes
 
 - ``BindExposure``
+- ``isLoopback(host:)``

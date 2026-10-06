@@ -165,6 +165,28 @@ struct ReloadTests {
         #expect(tls.current.leaf == (try summary(of: second)))
     }
 
+    /// The chain is byte for byte the one being served; only the key file differs. `load`
+    /// refuses a key that is not the leaf's, so a key file that changes under an unchanged
+    /// chain and still loads holds the same key written differently — here, with one more
+    /// line ending. "Unchanged" has to mean the files are the ones being served, so this is a
+    /// change, and the context is rebuilt from the file as it now is.
+    @Test("reloadIfChanged sees a key file that changed under a chain that did not")
+    func reloadIfChangedSeesAKeyOnlyChange() throws {
+        let first = try authority.issueLeaf()
+        let tls = try ReloadableServerTLS(identity: try fixture.install(first), now: { TestInstant.now })
+        let original = tls.current.sslContext
+        #expect(tls.reloadIfChanged() == .unchanged(serving: try summary(of: first)))
+
+        try fixture.write(first.keyPEM + "\n", to: "privkey.pem", mode: 0o600)
+
+        #expect(tls.reloadIfChanged() == .reloaded(serving: try summary(of: first), replacing: try summary(of: first)))
+        #expect(tls.current.sslContext !== original)
+        // And having taken it, the same files are unchanged again.
+        let afterKeyChange = tls.current.sslContext
+        #expect(tls.reloadIfChanged() == .unchanged(serving: try summary(of: first)))
+        #expect(tls.current.sslContext === afterKeyChange)
+    }
+
     @Test("reload always rebuilds, even from the same files")
     func reloadAlwaysRebuilds() throws {
         let first = try authority.issueLeaf()
@@ -212,6 +234,61 @@ struct ReloadTests {
                 .reloaded(serving: try summary(of: second), replacing: try summary(of: first)),
                 .unchanged(serving: try summary(of: second)),
             ])
+    }
+
+    /// The outcomes of `count` triggers under `mode`, starting from `first` being served with
+    /// `second` already on disk.
+    private func outcomes(
+        of mode: ReloadMode, triggers count: Int, serving first: TestLeaf, onDisk second: TestLeaf
+    ) async throws -> [ReloadOutcome] {
+        let tls = try ReloadableServerTLS(identity: try fixture.install(first), now: { TestInstant.now })
+        _ = try fixture.install(second)
+        let (triggers, continuation) = AsyncStream.makeStream(of: Void.self)
+        for _ in 0..<count { continuation.yield() }
+        continuation.finish()
+        let outcomes = NIOLockedValueBox<[ReloadOutcome]>([])
+        await tls.reloadOnEach(triggers, mode: mode) { outcome in
+            outcomes.withLockedValue { $0.append(outcome) }
+        }
+        return outcomes.withLockedValue { $0 }
+    }
+
+    @Test("In .always mode every trigger is a full reload, whether or not anything changed")
+    func reloadOnEachAlways() async throws {
+        let first = try authority.issueLeaf()
+        let second = try authority.issueLeaf()
+
+        #expect(
+            try await outcomes(of: .always, triggers: 3, serving: first, onDisk: second) == [
+                .reloaded(serving: try summary(of: second), replacing: try summary(of: first)),
+                .reloaded(serving: try summary(of: second), replacing: try summary(of: second)),
+                .reloaded(serving: try summary(of: second), replacing: try summary(of: second)),
+            ])
+    }
+
+    @Test("In .ifChanged mode a trigger that finds the same files changes nothing")
+    func reloadOnEachIfChanged() async throws {
+        let first = try authority.issueLeaf()
+        let second = try authority.issueLeaf()
+
+        #expect(
+            try await outcomes(of: .ifChanged, triggers: 3, serving: first, onDisk: second) == [
+                .reloaded(serving: try summary(of: second), replacing: try summary(of: first)),
+                .unchanged(serving: try summary(of: second)),
+                .unchanged(serving: try summary(of: second)),
+            ])
+    }
+
+    @Test("reload(_:) is the two triggers under one name")
+    func reloadByMode() throws {
+        let first = try authority.issueLeaf()
+        let tls = try ReloadableServerTLS(identity: try fixture.install(first), now: { TestInstant.now })
+        let original = tls.current.sslContext
+
+        #expect(tls.reload(.ifChanged) == .unchanged(serving: try summary(of: first)))
+        #expect(tls.current.sslContext === original)
+        #expect(tls.reload(.always) == .reloaded(serving: try summary(of: first), replacing: try summary(of: first)))
+        #expect(tls.current.sslContext !== original)
     }
 
     // MARK: - Messages

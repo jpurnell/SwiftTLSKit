@@ -3,6 +3,24 @@ import NIOConcurrencyHelpers
 import NIOCore
 import NIOSSL
 
+/// What a trigger asks a reloader to do.
+///
+/// The two differ in what they do when the files on disk are the ones already being served,
+/// and in nothing else: both read and validate the files, and both report files that have
+/// gone bad.
+///
+/// Choose by what the trigger *means*. A signal, an admin endpoint or a renewal hook is someone
+/// saying "read them again", and the honest response is to do exactly that: ``always``. A timer
+/// is nobody saying anything, and rebuilding a context every minute to serve what is already
+/// served is noise: ``ifChanged``.
+public enum ReloadMode: Sendable, Hashable {
+    /// Rebuild the context from the files whenever they are valid. ``ReloadableServerTLS/reload()``.
+    case always
+    /// Rebuild the context only when the certificate chain or the private key file differs
+    /// from what is being served. ``ReloadableServerTLS/reloadIfChanged()``.
+    case ifChanged
+}
+
 /// What a reload did.
 ///
 /// Whatever it did, a context is being served afterwards, and every case says which.
@@ -14,7 +32,8 @@ public enum ReloadOutcome: Sendable, Hashable {
     ///   - replacing: The leaf served until this reload.
     case reloaded(serving: CertificateSummary, replacing: CertificateSummary)
 
-    /// The files were valid and hold the chain already being served. Nothing was replaced.
+    /// The files were valid, and the certificate chain and the private key file are both
+    /// byte for byte what is already being served. Nothing was replaced.
     ///
     /// - Parameter serving: The leaf served, before and after.
     case unchanged(serving: CertificateSummary)
@@ -68,8 +87,9 @@ extension ReloadOutcome: CustomStringConvertible {
 /// ## Triggering a reload
 ///
 /// The package does not decide when. ``reload()`` and ``reloadIfChanged()`` are the triggers,
-/// and ``reloadOnEach(_:report:)`` runs one of them for each element of any asynchronous
-/// sequence — a timer, or a stream of `SIGHUP`s. See <doc:ReloadingWithoutRestart>.
+/// and ``reloadOnEach(_:mode:report:)`` runs one of them — the caller says which — for each
+/// element of any asynchronous sequence: a stream of `SIGHUP`s, or a timer. See
+/// <doc:ReloadingWithoutRestart>.
 public final class ReloadableServerTLS: Sendable {
     /// The files reloaded from.
     public let identity: ServerIdentity
@@ -128,8 +148,9 @@ public final class ReloadableServerTLS: Sendable {
 
     /// Reads the identity from disk again and, if it is fit to serve, serves it from now on.
     ///
-    /// Always rebuilds the context when the files are valid, whether or not they changed. Use
-    /// ``reloadIfChanged()`` for a trigger that fires on a schedule.
+    /// Always rebuilds the context when the files are valid, whether or not they changed. This
+    /// is what a signal or an operator's request should run. Use ``reloadIfChanged()`` for a
+    /// trigger that fires on a schedule.
     ///
     /// - Returns: ``ReloadOutcome/reloaded(serving:replacing:)``, or
     ///   ``ReloadOutcome/failed(_:stillServing:)`` with the previous identity still served.
@@ -138,25 +159,71 @@ public final class ReloadableServerTLS: Sendable {
         reloading.withLock { replace(onlyIfChanged: false) }
     }
 
-    /// Reads the identity from disk again and replaces the current one only if the certificate
-    /// chain differs.
+    /// Reads the identity from disk again and replaces the current one only if the files differ
+    /// from what is being served.
+    ///
+    /// "Differ" covers both files: the certificate chain, compared certificate by certificate,
+    /// and the private key file, compared by a digest of its bytes that is held in memory and
+    /// never shown. A key that is not the leaf's is refused, so a renewal that passes
+    /// validation with a new key necessarily has a new chain, and the chain alone would catch
+    /// it. The key file is compared as well so that ``ReloadOutcome/unchanged(serving:)``
+    /// means what it says — the files on disk are the files being served — rather than "the
+    /// public half is".
     ///
     /// The files are validated either way, so a chain that has not changed but has since
     /// expired, or a key whose permissions have been loosened, is still reported as
     /// ``ReloadOutcome/failed(_:stillServing:)``.
     ///
-    /// - Returns: ``ReloadOutcome/unchanged(serving:)`` when the chain on disk is the one being
-    ///   served; otherwise as ``reload()``.
+    /// - Returns: ``ReloadOutcome/unchanged(serving:)`` when the chain and the key file on disk
+    ///   are the ones being served; otherwise as ``reload()``.
     @discardableResult
     public func reloadIfChanged() -> ReloadOutcome {
         reloading.withLock { replace(onlyIfChanged: true) }
     }
 
+    /// Reloads in the way `mode` names: ``reload()`` for ``ReloadMode/always``,
+    /// ``reloadIfChanged()`` for ``ReloadMode/ifChanged``.
+    ///
+    /// - Parameter mode: Whether files that have not changed are loaded again.
+    /// - Returns: What the reload did.
+    @discardableResult
+    public func reload(_ mode: ReloadMode) -> ReloadOutcome {
+        switch mode {
+        case .always: return reload()
+        case .ifChanged: return reloadIfChanged()
+        }
+    }
+
+    /// Reloads once for each element of `triggers`, in the way `mode` names, until it ends.
+    ///
+    /// The mechanism behind both a `SIGHUP` handler and a periodic check: the caller supplies
+    /// the sequence and says what an element of it means, and this supplies the loop. It
+    /// returns when the sequence finishes — which, for an `AsyncStream`, includes the
+    /// surrounding task being cancelled.
+    ///
+    /// `mode` has no default on purpose. A signal should be ``ReloadMode/always`` and a timer
+    /// ``ReloadMode/ifChanged``, and the place that knows which it is holding is the call site.
+    ///
+    /// - Parameters:
+    ///   - triggers: When to reload. The elements themselves are ignored.
+    ///   - mode: What each trigger asks for.
+    ///   - report: Called with each outcome, in order — the place to log it.
+    /// - Throws: Only what iterating `triggers` throws.
+    public func reloadOnEach<Triggers: AsyncSequence & Sendable>(
+        _ triggers: Triggers,
+        mode: ReloadMode,
+        report: @Sendable (ReloadOutcome) -> Void
+    ) async rethrows {
+        for try await _ in triggers {
+            report(reload(mode))
+        }
+    }
+
     /// Calls ``reloadIfChanged()`` once for each element of `triggers`, until it ends.
     ///
-    /// The mechanism behind both a periodic check and a `SIGHUP` handler: the caller supplies
-    /// the sequence, and this supplies the loop. It returns when the sequence finishes — which,
-    /// for an `AsyncStream`, includes the surrounding task being cancelled.
+    /// The same as ``reloadOnEach(_:mode:report:)`` with ``ReloadMode/ifChanged``, and kept so
+    /// that code written against 0.1.0 compiles unchanged. Prefer the form that names its
+    /// mode: for a signal it should be ``ReloadMode/always``.
     ///
     /// - Parameters:
     ///   - triggers: When to check. The elements themselves are ignored.
@@ -166,9 +233,7 @@ public final class ReloadableServerTLS: Sendable {
         _ triggers: Triggers,
         report: @Sendable (ReloadOutcome) -> Void
     ) async rethrows {
-        for try await _ in triggers {
-            report(reloadIfChanged())
-        }
+        try await reloadOnEach(triggers, mode: .ifChanged, report: report)
     }
 
     private func replace(onlyIfChanged: Bool) -> ReloadOutcome {
@@ -182,7 +247,9 @@ public final class ReloadableServerTLS: Sendable {
         case .success(let loaded):
             candidate = loaded
         }
-        if onlyIfChanged, candidate.chainFingerprints == serving.chainFingerprints {
+        if onlyIfChanged, candidate.chainFingerprints == serving.chainFingerprints,
+            candidate.privateKeyFileDigest == serving.privateKeyFileDigest
+        {
             return .unchanged(serving: serving.leaf)
         }
         currentContext.withLockedValue { $0 = candidate }

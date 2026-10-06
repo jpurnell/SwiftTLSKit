@@ -98,7 +98,8 @@ public struct ServerIdentity: Sendable, Hashable {
         }
         return LoadedServerIdentity(
             identity: self, certificateChain: chain, privateKey: key, leaf: leaf,
-            chainFingerprints: try fingerprints(of: chain))
+            chainFingerprints: try fingerprints(of: chain),
+            privateKeyFileDigest: PrivateKeyFileDigest(ofFileContents: keyBytes))
     }
 
     private static let certificateMarker = Array("-----BEGIN CERTIFICATE-----".utf8)
@@ -179,7 +180,11 @@ public struct LoadedServerIdentity: Sendable {
     /// What the leaf certificate says: its names, its validity, its fingerprints.
     public let leaf: CertificateSummary
 
-    /// SHA-256 of each certificate in the chain, leaf first: what "the same identity as
-    /// before" is decided by.
+    /// SHA-256 of each certificate in the chain, leaf first: half of what "the same identity
+    /// as before" is decided by.
     let chainFingerprints: [String]
+
+    /// What the key file held, as a digest that can be compared and cannot be read or printed.
+    /// With ``chainFingerprints``, the whole of "the same files as before".
+    let privateKeyFileDigest: PrivateKeyFileDigest
 }

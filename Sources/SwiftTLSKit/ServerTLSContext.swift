@@ -76,6 +76,9 @@ public struct ServerTLSContext: Sendable {
     /// SHA-256 of each certificate served, leaf first.
     let chainFingerprints: [String]
 
+    /// What the key file this context was built from held. Compared, never read.
+    let privateKeyFileDigest: PrivateKeyFileDigest
+
     /// Builds a context that serves `identity`.
     ///
     /// - Parameters:
@@ -100,6 +103,7 @@ public struct ServerTLSContext: Sendable {
         self.leaf = identity.leaf
         self.options = options
         self.chainFingerprints = identity.chainFingerprints
+        self.privateKeyFileDigest = identity.privateKeyFileDigest
     }
 
     /// Reads, validates and builds in one step.

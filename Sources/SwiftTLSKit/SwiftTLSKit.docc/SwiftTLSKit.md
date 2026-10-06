@@ -57,6 +57,7 @@ Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a cli
 ### Reloading without restarting
 
 - ``ReloadableServerTLS``
+- ``ReloadMode``
 - ``ReloadOutcome``
 
 ### Trusting a server

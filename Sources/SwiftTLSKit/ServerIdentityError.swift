@@ -1,29 +1,15 @@
 import Foundation
 
-/// Why a server identity was refused.
+/// Why a server identity was refused when it was loaded.
+///
+/// Thrown by ``ServerIdentity/load(now:)`` and everything built on it. Half a pair of settings
+/// is not here: that is ``IncompleteServerIdentity``, which is all
+/// ``ServerIdentity/resolve(certificateChainPath:privateKeyPath:)`` can throw.
 ///
 /// Every case names the path concerned and the reason. None carries anything read from a file:
 /// a refusal is written to logs and shown to operators, and a private key must not follow it
 /// there.
 public enum ServerIdentityError: Error, Sendable, Hashable {
-    /// Which of the two files an identity is made of.
-    public enum Component: Sendable, Hashable {
-        /// The PEM certificate chain.
-        case certificateChain
-        /// The PEM private key.
-        case privateKey
-    }
-
-    /// Exactly one of the certificate chain and the private key was supplied.
-    ///
-    /// This is the defect the package exists to remove: the code it replaces built a TLS
-    /// context only when both were present, so one without the other served plaintext.
-    ///
-    /// - Parameters:
-    ///   - present: The half that was supplied.
-    ///   - path: The path supplied for it.
-    case incompletePair(present: Component, path: String)
-
     /// The file could not be opened or read.
     ///
     /// - Parameters:
@@ -96,10 +82,6 @@ extension ServerIdentityError: CustomStringConvertible {
     /// A sentence for a log line or a start-up failure, naming the path and what to do.
     public var description: String {
         switch self {
-        case .incompletePair(.certificateChain, let path):
-            return "A TLS certificate chain was given (\(path)) without a private key. " + Self.pairRemedy
-        case .incompletePair(.privateKey, let path):
-            return "A TLS private key was given (\(path)) without a certificate chain. " + Self.pairRemedy
         case .unreadable(let path, let reason):
             return "Cannot read \(path): \(reason)."
         case .notRegularFile(let path):
@@ -125,9 +107,6 @@ extension ServerIdentityError: CustomStringConvertible {
             return "The TLS library refused this identity: \(reason)."
         }
     }
-
-    private static let pairRemedy =
-        "Supply both to serve TLS, or neither to serve plaintext; one without the other is refused."
 
     /// Permission bits as `chmod` writes them: four octal digits.
     private static func octal(_ mode: UInt16) -> String {

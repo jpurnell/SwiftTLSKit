@@ -10,7 +10,8 @@ import NIOSSL
 ///
 /// A server's TLS settings usually arrive as two optional strings — `--tls-cert` and
 /// `--tls-key`. ``resolve(certificateChainPath:privateKeyPath:)`` turns the pair into one of
-/// three answers, and the one that matters is the third:
+/// three answers — no identity, an identity, or an error — and the one that matters is the
+/// third:
 ///
 /// ```swift
 /// import SwiftTLSKit
@@ -20,7 +21,7 @@ import NIOSSL
 /// } catch {
 ///     print(error)
 /// }
-/// // Prints "A TLS certificate chain was given (/certs/fullchain.pem) without a private key. Supply both to serve TLS, or neither to serve plaintext; one without the other is refused."
+/// // Prints "A TLS certificate chain was given (/certs/fullchain.pem) without a private key. A server identity needs both; one without the other is refused."
 /// ```
 public struct ServerIdentity: Sendable, Hashable {
     /// The path of the PEM certificate chain: the leaf first, then its intermediates.
@@ -44,23 +45,25 @@ public struct ServerIdentity: Sendable, Hashable {
     /// - Parameters:
     ///   - certificateChainPath: The certificate chain path, if one was configured.
     ///   - privateKeyPath: The private key path, if one was configured.
-    /// - Returns: `nil` when neither was configured — the server is to run without TLS — and
-    ///   the identity when both were.
-    /// - Throws: ``ServerIdentityError/incompletePair(present:path:)`` when exactly one was
-    ///   configured. Half a pair is never treated as "no TLS".
+    /// - Returns: `nil` when neither was configured, and the identity when both were. `nil`
+    ///   means only that no identity was asked for; whether the server then runs without TLS
+    ///   or refuses to start is the caller's decision, and ``BindExposure`` is the question to
+    ///   ask before making it.
+    /// - Throws: ``IncompleteServerIdentity`` when exactly one was configured. Half a pair is
+    ///   never treated as "no TLS".
     public static func resolve(
         certificateChainPath: String?,
         privateKeyPath: String?
-    ) throws(ServerIdentityError) -> ServerIdentity? {
+    ) throws(IncompleteServerIdentity) -> ServerIdentity? {
         switch (certificateChainPath, privateKeyPath) {
         case (nil, nil):
             return nil
         case (let chain?, let key?):
             return ServerIdentity(certificateChainPath: chain, privateKeyPath: key)
         case (let chain?, nil):
-            throw .incompletePair(present: .certificateChain, path: chain)
+            throw IncompleteServerIdentity(present: .certificateChain, path: chain)
         case (nil, let key?):
-            throw .incompletePair(present: .privateKey, path: key)
+            throw IncompleteServerIdentity(present: .privateKey, path: key)
         }
     }
 

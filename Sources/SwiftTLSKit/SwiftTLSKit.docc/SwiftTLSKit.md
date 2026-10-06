@@ -15,7 +15,7 @@ bootstrap.
 Four properties are the point of it:
 
 - **Half an identity is an error, never plaintext.** A certificate path without a key path, or
-  the reverse, throws ``ServerIdentityError/incompletePair(present:path:)``. The code this
+  the reverse, throws ``IncompleteServerIdentity``. The code this
   replaces built a TLS context only when both were present, so one without the other served
   plaintext without a word.
 - **An identity is judged before it is served.** ``ServerIdentity/load(now:)`` refuses a
@@ -43,6 +43,7 @@ Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a cli
 ### Naming and loading a server identity
 
 - ``ServerIdentity``
+- ``IncompleteServerIdentity``
 - ``LoadedServerIdentity``
 - ``CertificateSummary``
 - ``ServerIdentityError``

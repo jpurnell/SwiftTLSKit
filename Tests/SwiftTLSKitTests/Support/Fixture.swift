@@ -1,5 +1,6 @@
 import Foundation
 import SwiftTLSKit
+import SwiftTLSKitTestSupport
 
 /// A directory of PEM files that exists for one test and is removed when the test lets go.
 final class Fixture {
@@ -37,7 +38,7 @@ final class Fixture {
     /// Writes a leaf's chain (0644) and key (0600) under the names certbot uses.
     func install(_ leaf: TestLeaf, keyMode: Int = 0o600) throws -> ServerIdentity {
         ServerIdentity(
-            certificateChainPath: try write(try leaf.chainPEM, to: "fullchain.pem", mode: 0o644),
-            privateKeyPath: try write(leaf.keyPEM, to: "privkey.pem", mode: keyMode))
+            certificateChainPath: try write(leaf.chainPEM, to: "fullchain.pem", mode: 0o644),
+            privateKeyPath: try write(leaf.privateKeyPEM, to: "privkey.pem", mode: keyMode))
     }
 }

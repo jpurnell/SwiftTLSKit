@@ -21,8 +21,8 @@ configuration to a listening TLS server skips the checks.
 
 ### Errors are typed, and carry paths, never contents
 
-``ServerIdentityError`` and ``ClientTrustError`` are `Hashable` enums, so a caller can match a
-case and a test can assert one exactly. The private key's parse error from the TLS library is
+``ServerIdentityError``, ``IncompleteServerIdentity`` and ``ClientTrustError`` are `Hashable`,
+so a caller can match a case and a test can assert one exactly. The private key's parse error from the TLS library is
 discarded rather than wrapped, because it is the one error that might describe the key.
 
 ### Time is a parameter
@@ -36,9 +36,92 @@ The package logs nothing. It returns values with descriptions — ``CertificateS
 ``ReloadOutcome``, ``BindExposure`` — and the consumer logs them with its own logger and its
 own privacy annotations. A library that never holds a logger cannot log a key by accident.
 
+What it can say without a logger is how much an outcome matters, and
+``ReloadOutcome/suggestedLogLevel`` does: a ``SuggestedLogLevel`` of three cases whose raw
+values happen to be swift-log's level names. That is a string coincidence a consumer can use,
+not a dependency.
+
 ### Minimum TLS 1.2, and no setting below it
 
 ``MinimumTLSVersion`` has two cases. TLS 1.0 and 1.1 are not expressible.
+
+## What the first adopters changed
+
+0.1.0 was designed by reading the code it replaced. Two packages then adopted it, and each
+worked round something by writing it again. Those workarounds were the second design input,
+and a better one, because they were written by something trying to use the API.
+
+### An error type is as wide as what throws it
+
+``ServerIdentity/resolve(certificateChainPath:privateKeyPath:)`` can fail one way. In 0.1.0 it
+threw ``ServerIdentityError``, twelve cases of which it could not produce, and a consumer
+wrapping its error had to carry all of them. It now throws ``IncompleteServerIdentity``, and
+``ServerIdentityError`` lost the one case that only `resolve` produced. The break in source
+was taken deliberately: keeping the case for compatibility would have left an error type
+with a case nothing throws, which is the same defect seen from the other side.
+
+### A message says only what is true for every consumer
+
+The half-pair message used to end "or neither to serve plaintext". For a server that refuses
+plaintext on a public address, that sentence sends its operator to an option that does not
+work. What a server does with no identity is its own decision, so the message stops before
+it. It also takes the consumer's names for the two settings, because the operator typed
+`--tls-cert`, not "a TLS certificate chain".
+
+### "Unchanged" covers both files
+
+``ReloadableServerTLS/reloadIfChanged()`` compared the chain. The adopters' report was that a
+renewal keeping the chain and changing the key would be missed. Looked at closely that cannot
+happen: a key that is not the leaf's is refused, so a new key that validates always comes
+with a new chain. What was true is narrower and still wrong — a key file rewritten under the
+same chain was reported as nothing having happened. The key file is now compared too.
+
+It is compared by a SHA-256 of its bytes, which means something derived from the key is held
+in memory, and the package's rule is that nothing derived from the key reaches a log. The
+digest is therefore a type that can be compared and nothing else: no accessor, a description
+that says "redacted", and an empty mirror. A test walks everything reflection can reach from
+each public value and looks for it.
+
+### What a trigger means is said where the trigger is
+
+``ReloadableServerTLS/reloadOnEach(_:mode:report:)`` takes a ``ReloadMode`` and gives it no
+default. The article's own `SIGHUP` snippet had used the if-changed loop for a signal; a
+default would let the next snippet make the same mistake silently.
+
+### One definition of loopback
+
+Both adopters asked ``BindExposure`` whether a host was loopback, one of them about a host it
+dials. ``isLoopback(host:)`` is that question on its own. Writing its table found three ways
+the definition was too generous, each resolved towards "not loopback": an octet with a
+leading zero, which `inet_pton` reads as decimal on Darwin and `getaddrinfo` reads as octal;
+brackets around something that is not an IPv6 literal; and a zone identifier.
+
+### Handshake failures are classified here, once
+
+``ClientHandshakeFailure`` was a test helper. Both adopters rebuilt it, and one took a
+dependency on swift-nio-ssl to do so. Publishing it moves the fragile part — NIOSSL keeps
+BoringSSL's error code private, so it is read from the front of the error's description —
+into the one package whose tests perform every kind of failed handshake. The code is compared
+as a number, from an error that is structurally a BoringSSL one; an error whose text merely
+contains `CERTIFICATE_VERIFY_FAILED` is not classified by it.
+
+A peer that closes without sending anything is ``ClientHandshakeFailure/other(_:)``, not
+``ClientHandshakeFailure/peerDoesNotSpeakTLS``. Nothing arrived, so there is nothing to say
+it was not a TLS server that crashed.
+
+### Test support is a product, and in-memory identities are not public
+
+Both adopters copied this package's test certificates and added swift-certificates to their
+own test targets. `SwiftTLSKitTestSupport` is that code as a second product, which makes
+swift-certificates a dependency of that product and of nothing else.
+
+It also builds a server context from memory, so a test need not write a private key to disk.
+That needed an entry point in this module, and it is `package`, not `public`: the rule that a
+server context comes only from a loaded identity, with its permission check, still holds for
+everything a server can call.
+
+The test-support product has no randomness of its own. Every key and serial number comes from
+a generator the caller passes in, and it does not ship one.
 
 ## Where the code forced a deviation
 
@@ -100,4 +183,7 @@ uses the string to decide *that* the peer is an address; the address checked is 
   ``ServerIdentityError/invalidPrivateKey(path:)``.
 - Checking the private key's owner. The mode is checked; the uid is not.
 - Linux has not been built or tested. The code avoids Darwin-only API and the manifest
-  declares only what was verified.
+  declares only what was verified. ``ClientHandshakeFailure/wrongHostname(under:)`` has a
+  branch for it that states NIOSSL's documented behaviour and has not been run.
+- A way to read the peer certificate's fingerprint after a client handshake. Tests that want
+  it still reach for `NIOSSLClientHandler.peerCertificate`.

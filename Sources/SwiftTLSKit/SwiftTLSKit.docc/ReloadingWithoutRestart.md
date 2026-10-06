@@ -43,19 +43,49 @@ the old identity. The next reload, with both files in place, succeeds. Nothing n
 coordinate the two; the failure in between is the mechanism working, and it is worth logging
 at a level below an alarm.
 
+``ReloadOutcome/suggestedLogLevel`` says so in a form code can use: a failed reload is a
+``SuggestedLogLevel/warning``, a reload is a ``SuggestedLogLevel/notice``, and no change is
+``SuggestedLogLevel/info``. The package has no logging dependency, so the level is a small
+enum of its own whose raw values are swift-log's level names:
+
+```swift
+import SwiftTLSKit
+
+func levelName(for outcome: ReloadOutcome) -> String {
+    // With swift-log: Logger.Level(rawValue: outcome.suggestedLogLevel.rawValue)
+    outcome.suggestedLogLevel.rawValue
+}
+```
+
 ## Triggers
 
 There are two, and the package leaves the choice of when to the server.
 
-``ReloadableServerTLS/reload()`` always rebuilds the context when the files are valid.
+``ReloadableServerTLS/reload()`` always rebuilds the context when the files are valid. It is
+the one a signal, an admin endpoint or a renewal hook should run: somebody has said "read them
+again", and the response to that is to read them again.
 
 ``ReloadableServerTLS/reloadIfChanged()`` validates the files and replaces the context only
-if the certificate chain differs from the one being served. It is the one to call on a
-schedule: an unchanged chain is ``ReloadOutcome/unchanged(serving:)`` and costs two small
-file reads.
+if they differ from what is being served. It is the one to call on a schedule: unchanged files
+are ``ReloadOutcome/unchanged(serving:)`` and cost two small file reads.
 
-``ReloadableServerTLS/reloadOnEach(_:report:)`` runs `reloadIfChanged()` for every element of
-an asynchronous sequence, which covers both of the usual arrangements.
+``ReloadableServerTLS/reloadOnEach(_:mode:report:)`` runs one or the other for every element
+of an asynchronous sequence, which covers both of the usual arrangements. Its
+``ReloadMode`` — ``ReloadMode/always`` or ``ReloadMode/ifChanged`` — has no default, because
+the place that knows whether it is holding a signal or a timer is the call site.
+
+### What "changed" means
+
+Both files. The certificate chain is compared certificate by certificate, and the private key
+file by a SHA-256 of its bytes that is kept in memory for that comparison alone. The digest
+has no accessor and describes itself as redacted, so it cannot reach a log, a `dump` or a
+debugger summary; nothing else derived from the key file is kept.
+
+In 0.1.0 only the chain was compared. That could not serve a stale key — a key that is not the
+leaf's is refused, so a new key that passes validation always comes with a new chain — but it
+did mean "unchanged" was a statement about the public half only, and a key file rewritten
+under the same chain was reported as nothing having happened. The wrong thing to build a
+`SIGHUP` handler on, which is what this article used to show.
 
 ### On SIGHUP
 
@@ -72,13 +102,21 @@ import os
 func reloadOnHangup(_ tls: ReloadableServerTLS, logger: Logger) async {
     // Without this the default disposition ends the process before the source sees it.
     signal(SIGHUP, SIG_IGN)
-    let (hangups, continuation) = AsyncStream.makeStream(of: Void.self)
+    // One undelivered hangup is enough: several that pile up behind a reload in progress all
+    // ask for the same thing, and one more reload answers every one of them.
+    let (hangups, continuation) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
     let source = DispatchSource.makeSignalSource(signal: SIGHUP, queue: .global())
     source.setEventHandler { continuation.yield() }
+    source.setCancelHandler { continuation.finish() }
     source.resume()
 
-    await tls.reloadOnEach(hangups) { outcome in
-        logger.notice("\(outcome.description, privacy: .public)")
+    // `.always`: a hangup is an operator saying "read them again".
+    await tls.reloadOnEach(hangups, mode: .always) { outcome in
+        switch outcome.suggestedLogLevel {
+        case .info: logger.info("\(outcome.description, privacy: .public)")
+        case .notice: logger.notice("\(outcome.description, privacy: .public)")
+        case .warning: logger.warning("\(outcome.description, privacy: .public)")
+        }
     }
     source.cancel()
 }
@@ -100,7 +138,8 @@ func reloadEvery(_ interval: Duration, _ tls: ReloadableServerTLS, logger: Logge
             return nil
         }
     }
-    await tls.reloadOnEach(ticks) { outcome in
+    // `.ifChanged`: a tick is nobody saying anything, so unchanged files are left alone.
+    await tls.reloadOnEach(ticks, mode: .ifChanged) { outcome in
         if case .unchanged = outcome { return }
         logger.notice("\(outcome.description, privacy: .public)")
     }

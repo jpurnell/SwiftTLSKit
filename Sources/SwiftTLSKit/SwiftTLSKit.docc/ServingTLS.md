@@ -10,14 +10,37 @@ and ``ServerIdentity/resolve(certificateChainPath:privateKeyPath:)`` gives each 
 
 | Certificate chain | Private key | Result |
 |---|---|---|
-| absent | absent | `nil` — the server runs without TLS |
+| absent | absent | `nil` — no identity was configured |
 | present | present | a ``ServerIdentity`` |
-| present | absent | throws ``ServerIdentityError/incompletePair(present:path:)`` |
-| absent | present | throws ``ServerIdentityError/incompletePair(present:path:)`` |
+| present | absent | throws ``IncompleteServerIdentity`` |
+| absent | present | throws ``IncompleteServerIdentity`` |
 
 The last two rows are why the function exists. Written as `if let certPath, let keyPath`, they
 fall through to plaintext, and an operator who mistyped one flag is running an unencrypted
 server that started without complaint.
+
+``IncompleteServerIdentity`` is all `resolve` can throw. It carries the half that was given
+and its path, and its message can be written in the server's own vocabulary:
+
+```swift
+import SwiftTLSKit
+
+func identity(tlsCert: String?, tlsKey: String?) -> ServerIdentity? {
+    do {
+        return try ServerIdentity.resolve(certificateChainPath: tlsCert, privateKeyPath: tlsKey)
+    } catch {
+        print(error.description(certificateChainSetting: "--tls-cert", privateKeySetting: "--tls-key"))
+        return nil
+    }
+}
+_ = identity(tlsCert: "/certs/fullchain.pem", tlsKey: nil)
+// Prints "--tls-cert was given (/certs/fullchain.pem) without --tls-key. A server identity needs both; one without the other is refused."
+```
+
+The first row is the caller's to interpret. `nil` says no identity was configured; it does not
+say "serve plaintext". A server that would rather not start than listen unencrypted on a
+public address asks ``BindExposure`` and refuses — see "Plaintext, and where it is bound"
+below — and nothing in a message from this package tells its operator otherwise.
 
 ## Adopting it in a NIO server
 
@@ -29,7 +52,7 @@ import Foundation
 import NIOCore
 import SwiftTLSKit
 
-/// At start-up. `nil` means "serve plaintext"; a thrown error means "do not start".
+/// At start-up. `nil` means "no identity was configured"; a thrown error means "do not start".
 func makeServerTLS(certificatePath: String?, keyPath: String?) throws -> ReloadableServerTLS? {
     guard let identity = try ServerIdentity.resolve(
         certificateChainPath: certificatePath, privateKeyPath: keyPath)
@@ -52,13 +75,18 @@ need a restart — see <doc:ReloadingWithoutRestart>.
 
 ## What is refused, and what the message says
 
+`resolve` refuses one thing, as an ``IncompleteServerIdentity``:
+
+| Refused | Message |
+|---|---|
+| One of the two paths | `A TLS certificate chain was given (PATH) without a private key. A server identity needs both; one without the other is refused.` |
+
 ``ServerIdentity/load(now:)`` — which ``ReloadableServerTLS`` and
 ``ServerTLSContext/load(_:options:now:)`` both call — refuses the following. Each is a
 ``ServerIdentityError`` whose description is the sentence shown, with the real path in it.
 
 | Refused | Message |
 |---|---|
-| One of the two paths | `A TLS certificate chain was given (PATH) without a private key. Supply both to serve TLS, or neither to serve plaintext; one without the other is refused.` |
 | A file that cannot be opened | `Cannot read PATH: No such file or directory.` |
 | A directory, FIFO or device | `PATH is not a regular file.` |
 | A file over 1 MiB | `PATH is larger than 1048576 bytes, which no certificate chain or private key is.` |

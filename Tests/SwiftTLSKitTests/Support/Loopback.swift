@@ -116,8 +116,50 @@ struct LoopbackServer {
         return LoopbackServer(channel: channel, port: port)
     }
 
+    /// A server with no TLS at all, which answers whatever arrives first with `reply` in the
+    /// clear and then closes — what a client meets when it dials `wss://` at a `ws://` port.
+    /// With `reply` nil it closes without a word.
+    static func startPlaintext(replying reply: String?) async throws -> LoopbackServer {
+        let channel = try await ServerBootstrap(group: MultiThreadedEventLoopGroup.singleton)
+            .serverChannelOption(.socketOption(.so_reuseaddr), value: 1)
+            .childChannelInitializer { channel in
+                channel.eventLoop.makeCompletedFuture {
+                    try channel.pipeline.syncOperations.addHandler(PlaintextResponder(reply: reply))
+                }
+            }
+            .bind(host: "127.0.0.1", port: 0)
+            .get()
+        guard let port = channel.localAddress?.port else {
+            throw LoopbackError.noPort
+        }
+        return LoopbackServer(channel: channel, port: port)
+    }
+
     func stop() async throws {
         try await channel.close()
+    }
+}
+
+/// Answers the first bytes it receives in the clear, or with nothing, and closes.
+final class PlaintextResponder: ChannelInboundHandler {
+    typealias InboundIn = ByteBuffer
+    typealias OutboundOut = ByteBuffer
+
+    private let reply: String?
+
+    init(reply: String?) {
+        self.reply = reply
+    }
+
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        guard let reply else {
+            context.close(promise: nil)
+            return
+        }
+        let bound = NIOLoopBound(context, eventLoop: context.eventLoop)
+        context.writeAndFlush(wrapOutboundOut(ByteBuffer(string: reply))).whenComplete { _ in
+            bound.value.close(promise: nil)
+        }
     }
 }
 
@@ -313,55 +355,29 @@ struct LoopbackClient {
     }
 }
 
-/// Why a handshake did not complete, reduced to what the tests distinguish.
-enum HandshakeFailure: Equatable {
-    /// Certificate verification refused the server. An untrusted chain always ends here. So
-    /// does a wrong hostname *when the system root store is consulted on an Apple platform*:
-    /// Security.framework then judges chain and name together and reports one verdict.
-    case certificateVerificationFailed
-    /// NIOSSL's own hostname check refused the certificate: the chain was trusted and the name
-    /// was wrong. This is what a wrong hostname ends in whenever BoringSSL verifies the chain.
-    case hostnameMismatch
+/// The class of failure `body` ends in, as the library's own classifier reports it, or `nil`
+/// if it did not fail.
+func handshakeFailure(of body: () async throws -> LoopbackClient) async -> ClientHandshakeFailure? {
+    do {
+        let client = try await body()
+        try? await client.close()
+        return nil
+    } catch {
+        return ClientHandshakeFailure(error)
+    }
+}
 
-    /// What a trusted chain with the wrong hostname ends in when the system root store is
-    /// part of the trust.
-    static var wrongHostnameWithSystemRoots: HandshakeFailure {
+extension ClientHandshakeFailure {
+    /// What a trusted chain with the wrong hostname ends in when the system root store is part
+    /// of the trust, stated here independently of the library: on an Apple platform
+    /// Security.framework judges chain and name together and reports one verdict, so it is
+    /// "not trusted"; elsewhere BoringSSL verifies the chain, NIOSSL then checks the name, and
+    /// it is a hostname mismatch.
+    static var wrongHostnameWithSystemRoots: ClientHandshakeFailure {
         #if canImport(Darwin)
-        .certificateVerificationFailed
+        .certificateNotTrusted
         #else
         .hostnameMismatch
         #endif
-    }
-    /// The two sides share no protocol version.
-    case noSharedProtocolVersion
-    /// The handshake completed and the certificate matched none of the client's pins.
-    case pinMismatch(certificateSHA256: String, publicKeySHA256: String)
-    /// Anything else, verbatim, so an unexpected failure is legible in the test output.
-    case other(String)
-
-    init(_ error: any Error) {
-        let text = String(describing: error)
-        if case .pinMismatch(let certificate, let publicKey)? = error as? ClientTrustError {
-            self = .pinMismatch(certificateSHA256: certificate, publicKeySHA256: publicKey)
-        } else if let extra = error as? NIOSSLExtraError, extra == .failedToValidateHostname {
-            self = .hostnameMismatch
-        } else if text.contains("CERTIFICATE_VERIFY_FAILED") {
-            self = .certificateVerificationFailed
-        } else if text.contains("PROTOCOL_VERSION") || text.contains("UNSUPPORTED_PROTOCOL") {
-            self = .noSharedProtocolVersion
-        } else {
-            self = .other(text)
-        }
-    }
-
-    /// The failure `body` ends in, or `nil` if it did not fail.
-    static func of(_ body: () async throws -> LoopbackClient) async -> HandshakeFailure? {
-        do {
-            let client = try await body()
-            try? await client.close()
-            return nil
-        } catch {
-            return HandshakeFailure(error)
-        }
     }
 }

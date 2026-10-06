@@ -2,6 +2,7 @@ import Foundation
 import NIOConcurrencyHelpers
 import Testing
 import SwiftTLSKit
+import SwiftTLSKitTestSupport
 
 @Suite("Reloading a server identity without restarting", .timeLimit(.minutes(1)))
 struct ReloadTests {
@@ -9,12 +10,12 @@ struct ReloadTests {
     let fixture: Fixture
 
     init() throws {
-        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority")
+        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority", generator: SeededGenerator(seed: TestSeed.authority))
         fixture = try Fixture()
     }
 
     private func trustingAuthority() throws -> ClientTLSContext {
-        try ClientTLSContext(trust: .onlyRoots([.pem(try authority.certificatePEM)]))
+        try ClientTLSContext(trust: .onlyRoots([.pem(authority.certificatePEM)]))
     }
 
     /// What the library reports for `leaf`, loaded from a directory of its own so that asking
@@ -42,7 +43,7 @@ struct ReloadTests {
 
         let live = try await LoopbackClient.connect(
             port: server.port, context: try trustingAuthority(), serverHostname: "localhost")
-        #expect(live.report.peerCertificateSHA256 == (try first.certificateSHA256))
+        #expect(live.report.peerCertificateSHA256 == first.certificateSHA256)
         #expect(try await live.roundTrip("before") == "before")
 
         _ = try fixture.install(second)
@@ -50,7 +51,7 @@ struct ReloadTests {
 
         #expect(outcome == .reloaded(serving: try summary(of: second), replacing: try summary(of: first)))
         #expect(tls.current.leaf == (try summary(of: second)))
-        #expect(try await served(by: server) == (try second.certificateSHA256))
+        #expect(try await served(by: server) == second.certificateSHA256)
         // The connection opened before the reload is still up, still on the certificate it
         // negotiated, and still carrying data.
         #expect(try await live.roundTrip("after") == "after")
@@ -71,7 +72,7 @@ struct ReloadTests {
         let before = tls.current.sslContext
 
         // The state a renewal passes through: the new chain is in place, the key is not yet.
-        try fixture.write(try second.chainPEM, to: "fullchain.pem", mode: 0o644)
+        try fixture.write(second.chainPEM, to: "fullchain.pem", mode: 0o644)
         let outcome = tls.reload()
 
         #expect(
@@ -80,12 +81,12 @@ struct ReloadTests {
                     certificateChainPath: identity.certificateChainPath, privateKeyPath: identity.privateKeyPath),
                 stillServing: try summary(of: first)))
         #expect(tls.current.sslContext === before)
-        #expect(try await served(by: server) == (try first.certificateSHA256))
+        #expect(try await served(by: server) == first.certificateSHA256)
 
         // ...and once the key arrives, the same reload succeeds.
-        try fixture.write(second.keyPEM, to: "privkey.pem", mode: 0o600)
+        try fixture.write(second.privateKeyPEM, to: "privkey.pem", mode: 0o600)
         #expect(tls.reload() == .reloaded(serving: try summary(of: second), replacing: try summary(of: first)))
-        #expect(try await served(by: server) == (try second.certificateSHA256))
+        #expect(try await served(by: server) == second.certificateSHA256)
         try await server.stop()
     }
 
@@ -165,6 +166,28 @@ struct ReloadTests {
         #expect(tls.current.leaf == (try summary(of: second)))
     }
 
+    /// The chain is byte for byte the one being served; only the key file differs. `load`
+    /// refuses a key that is not the leaf's, so a key file that changes under an unchanged
+    /// chain and still loads holds the same key written differently — here, with one more
+    /// line ending. "Unchanged" has to mean the files are the ones being served, so this is a
+    /// change, and the context is rebuilt from the file as it now is.
+    @Test("reloadIfChanged sees a key file that changed under a chain that did not")
+    func reloadIfChangedSeesAKeyOnlyChange() throws {
+        let first = try authority.issueLeaf()
+        let tls = try ReloadableServerTLS(identity: try fixture.install(first), now: { TestInstant.now })
+        let original = tls.current.sslContext
+        #expect(tls.reloadIfChanged() == .unchanged(serving: try summary(of: first)))
+
+        try fixture.write(first.privateKeyPEM + "\n", to: "privkey.pem", mode: 0o600)
+
+        #expect(tls.reloadIfChanged() == .reloaded(serving: try summary(of: first), replacing: try summary(of: first)))
+        #expect(tls.current.sslContext !== original)
+        // And having taken it, the same files are unchanged again.
+        let afterKeyChange = tls.current.sslContext
+        #expect(tls.reloadIfChanged() == .unchanged(serving: try summary(of: first)))
+        #expect(tls.current.sslContext === afterKeyChange)
+    }
+
     @Test("reload always rebuilds, even from the same files")
     func reloadAlwaysRebuilds() throws {
         let first = try authority.issueLeaf()
@@ -212,6 +235,87 @@ struct ReloadTests {
                 .reloaded(serving: try summary(of: second), replacing: try summary(of: first)),
                 .unchanged(serving: try summary(of: second)),
             ])
+    }
+
+    /// The outcomes of `count` triggers under `mode`, starting from `first` being served with
+    /// `second` already on disk.
+    private func outcomes(
+        of mode: ReloadMode, triggers count: Int, serving first: TestLeaf, onDisk second: TestLeaf
+    ) async throws -> [ReloadOutcome] {
+        let tls = try ReloadableServerTLS(identity: try fixture.install(first), now: { TestInstant.now })
+        _ = try fixture.install(second)
+        let (triggers, continuation) = AsyncStream.makeStream(of: Void.self)
+        for _ in 0..<count { continuation.yield() }
+        continuation.finish()
+        let outcomes = NIOLockedValueBox<[ReloadOutcome]>([])
+        await tls.reloadOnEach(triggers, mode: mode) { outcome in
+            outcomes.withLockedValue { $0.append(outcome) }
+        }
+        return outcomes.withLockedValue { $0 }
+    }
+
+    @Test("In .always mode every trigger is a full reload, whether or not anything changed")
+    func reloadOnEachAlways() async throws {
+        let first = try authority.issueLeaf()
+        let second = try authority.issueLeaf()
+
+        #expect(
+            try await outcomes(of: .always, triggers: 3, serving: first, onDisk: second) == [
+                .reloaded(serving: try summary(of: second), replacing: try summary(of: first)),
+                .reloaded(serving: try summary(of: second), replacing: try summary(of: second)),
+                .reloaded(serving: try summary(of: second), replacing: try summary(of: second)),
+            ])
+    }
+
+    @Test("In .ifChanged mode a trigger that finds the same files changes nothing")
+    func reloadOnEachIfChanged() async throws {
+        let first = try authority.issueLeaf()
+        let second = try authority.issueLeaf()
+
+        #expect(
+            try await outcomes(of: .ifChanged, triggers: 3, serving: first, onDisk: second) == [
+                .reloaded(serving: try summary(of: second), replacing: try summary(of: first)),
+                .unchanged(serving: try summary(of: second)),
+                .unchanged(serving: try summary(of: second)),
+            ])
+    }
+
+    @Test("reload(_:) is the two triggers under one name")
+    func reloadByMode() throws {
+        let first = try authority.issueLeaf()
+        let tls = try ReloadableServerTLS(identity: try fixture.install(first), now: { TestInstant.now })
+        let original = tls.current.sslContext
+
+        #expect(tls.reload(.ifChanged) == .unchanged(serving: try summary(of: first)))
+        #expect(tls.current.sslContext === original)
+        #expect(tls.reload(.always) == .reloaded(serving: try summary(of: first), replacing: try summary(of: first)))
+        #expect(tls.current.sslContext !== original)
+    }
+
+    // MARK: - Log levels
+
+    /// The levels a server that had to choose for itself chose (IconquerServer's
+    /// `CertificateReload.level(for:)`), which is where the suggestion comes from.
+    @Test("A reload is a notice, no change is info, and a failure is a warning — not an error")
+    func suggestedLogLevels() throws {
+        let first = try summary(of: try authority.issueLeaf())
+        let second = try summary(of: try authority.issueLeaf())
+
+        #expect(ReloadOutcome.reloaded(serving: second, replacing: first).suggestedLogLevel == .notice)
+        #expect(ReloadOutcome.unchanged(serving: first).suggestedLogLevel == .info)
+        #expect(
+            ReloadOutcome.failed(.emptyCertificateChain(path: "/c/fullchain.pem"), stillServing: first)
+                .suggestedLogLevel == .warning)
+    }
+
+    /// swift-log's `Logger.Level` is a `String` enum whose raw values are these words, so a
+    /// consumer converts with `Logger.Level(rawValue:)` and this package needs no dependency.
+    @Test("The level's raw values are swift-log's level names, in order of severity")
+    func logLevelRawValues() {
+        #expect(SuggestedLogLevel.allCases.map(\.rawValue) == ["info", "notice", "warning"])
+        #expect(SuggestedLogLevel.info < .notice)
+        #expect(SuggestedLogLevel.notice < .warning)
+        #expect(SuggestedLogLevel.allCases.sorted() == [.info, .notice, .warning])
     }
 
     // MARK: - Messages

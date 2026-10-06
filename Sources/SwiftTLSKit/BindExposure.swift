@@ -13,9 +13,13 @@
 /// // Prints "true"
 /// ```
 ///
-/// Only literal loopback addresses and the name `localhost` count as loopback. Any other name
-/// is treated as exposed, because this function does not resolve names and a name that resolves
-/// to loopback today is a configuration that can change without this code being told.
+/// What counts as loopback is decided by ``isLoopback(host:)``, and nowhere else: literal
+/// loopback addresses and the name `localhost`. Any other name is treated as exposed, because
+/// names are not resolved and a name that resolves to loopback today is a configuration that
+/// can change without this code being told.
+///
+/// This type is about a host a listener *binds*. To ask whether a host a client *dials* is this
+/// machine, call ``isLoopback(host:)`` directly.
 public enum BindExposure: Sendable, Hashable {
     /// TLS is configured, whatever the host.
     case tls
@@ -32,38 +36,18 @@ public enum BindExposure: Sendable, Hashable {
     ///   - host: The host a listener is to bind, as configured: an IPv4 or IPv6 literal
     ///     (optionally in square brackets), or a name.
     ///   - tlsConfigured: Whether the listener will wrap connections in TLS.
-    /// - Returns: ``tls`` when `tlsConfigured`; otherwise ``loopbackPlaintext`` for `localhost`,
-    ///   `127.0.0.0/8`, `::1` and IPv4-mapped loopback, and ``exposedPlaintext(host:)`` for
-    ///   everything else — including the empty string and any other name.
+    /// - Returns: ``tls`` when `tlsConfigured`; otherwise ``loopbackPlaintext`` when
+    ///   ``isLoopback(host:)`` says so, and ``exposedPlaintext(host:)`` for everything else —
+    ///   including the empty string and any other name.
     public static func classify(host: String, tlsConfigured: Bool) -> BindExposure {
         guard !tlsConfigured else { return .tls }
-        return isLoopback(host) ? .loopbackPlaintext : .exposedPlaintext(host: host)
+        return isLoopback(host: host) ? .loopbackPlaintext : .exposedPlaintext(host: host)
     }
 
     /// Whether this is plaintext that other machines can reach.
     public var isExposedPlaintext: Bool {
         guard case .exposedPlaintext = self else { return false }
         return true
-    }
-
-    private static let loopbackName = "localhost"
-    private static let loopbackFirstOctet: UInt8 = 127
-    private static let ipv6LoopbackBytes: [UInt8] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-    private static let ipv4MappedPrefix: [UInt8] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff]
-
-    private static func isLoopback(_ host: String) -> Bool {
-        var literal = host
-        if literal.hasPrefix("["), literal.hasSuffix("]") {
-            literal = String(literal.dropFirst().dropLast())
-        }
-        if literal.lowercased() == loopbackName { return true }
-        if let ipv4 = IPAddressLiteral.ipv4Bytes(literal) {
-            return ipv4.first == loopbackFirstOctet
-        }
-        guard let ipv6 = IPAddressLiteral.ipv6Bytes(literal) else { return false }
-        if ipv6 == ipv6LoopbackBytes { return true }
-        guard ipv6.starts(with: ipv4MappedPrefix) else { return false }
-        return ipv6.dropFirst(ipv4MappedPrefix.count).first == loopbackFirstOctet
     }
 }
 

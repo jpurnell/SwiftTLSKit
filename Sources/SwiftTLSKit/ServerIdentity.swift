@@ -10,7 +10,8 @@ import NIOSSL
 ///
 /// A server's TLS settings usually arrive as two optional strings — `--tls-cert` and
 /// `--tls-key`. ``resolve(certificateChainPath:privateKeyPath:)`` turns the pair into one of
-/// three answers, and the one that matters is the third:
+/// three answers — no identity, an identity, or an error — and the one that matters is the
+/// third:
 ///
 /// ```swift
 /// import SwiftTLSKit
@@ -20,7 +21,7 @@ import NIOSSL
 /// } catch {
 ///     print(error)
 /// }
-/// // Prints "A TLS certificate chain was given (/certs/fullchain.pem) without a private key. Supply both to serve TLS, or neither to serve plaintext; one without the other is refused."
+/// // Prints "A TLS certificate chain was given (/certs/fullchain.pem) without a private key. A server identity needs both; one without the other is refused."
 /// ```
 public struct ServerIdentity: Sendable, Hashable {
     /// The path of the PEM certificate chain: the leaf first, then its intermediates.
@@ -44,23 +45,25 @@ public struct ServerIdentity: Sendable, Hashable {
     /// - Parameters:
     ///   - certificateChainPath: The certificate chain path, if one was configured.
     ///   - privateKeyPath: The private key path, if one was configured.
-    /// - Returns: `nil` when neither was configured — the server is to run without TLS — and
-    ///   the identity when both were.
-    /// - Throws: ``ServerIdentityError/incompletePair(present:path:)`` when exactly one was
-    ///   configured. Half a pair is never treated as "no TLS".
+    /// - Returns: `nil` when neither was configured, and the identity when both were. `nil`
+    ///   means only that no identity was asked for; whether the server then runs without TLS
+    ///   or refuses to start is the caller's decision, and ``BindExposure`` is the question to
+    ///   ask before making it.
+    /// - Throws: ``IncompleteServerIdentity`` when exactly one was configured. Half a pair is
+    ///   never treated as "no TLS".
     public static func resolve(
         certificateChainPath: String?,
         privateKeyPath: String?
-    ) throws(ServerIdentityError) -> ServerIdentity? {
+    ) throws(IncompleteServerIdentity) -> ServerIdentity? {
         switch (certificateChainPath, privateKeyPath) {
         case (nil, nil):
             return nil
         case (let chain?, let key?):
             return ServerIdentity(certificateChainPath: chain, privateKeyPath: key)
         case (let chain?, nil):
-            throw .incompletePair(present: .certificateChain, path: chain)
+            throw IncompleteServerIdentity(present: .certificateChain, path: chain)
         case (nil, let key?):
-            throw .incompletePair(present: .privateKey, path: key)
+            throw IncompleteServerIdentity(present: .privateKey, path: key)
         }
     }
 
@@ -78,7 +81,17 @@ public struct ServerIdentity: Sendable, Hashable {
     public func load(now: Date) throws(ServerIdentityError) -> LoadedServerIdentity {
         let chainBytes = try PEMFile.read(path: certificateChainPath, mustBeOwnerOnly: false)
         let keyBytes = try PEMFile.read(path: privateKeyPath, mustBeOwnerOnly: true)
+        return try validate(chainBytes: chainBytes, keyBytes: keyBytes, now: now)
+    }
 
+    /// Every check that is about what the two files hold rather than about the files: the
+    /// chain parses and is not empty, the key parses, the key is the leaf's, and the leaf is
+    /// valid at `now`.
+    ///
+    /// Errors name this identity's paths, whatever the bytes came from.
+    func validate(
+        chainBytes: [UInt8], keyBytes: [UInt8], now: Date
+    ) throws(ServerIdentityError) -> LoadedServerIdentity {
         let chain = try parseChain(chainBytes)
         guard let leafCertificate = chain.first else {
             throw .emptyCertificateChain(path: certificateChainPath)
@@ -95,7 +108,8 @@ public struct ServerIdentity: Sendable, Hashable {
         }
         return LoadedServerIdentity(
             identity: self, certificateChain: chain, privateKey: key, leaf: leaf,
-            chainFingerprints: try fingerprints(of: chain))
+            chainFingerprints: try fingerprints(of: chain),
+            privateKeyFileDigest: PrivateKeyFileDigest(ofFileContents: keyBytes))
     }
 
     private static let certificateMarker = Array("-----BEGIN CERTIFICATE-----".utf8)
@@ -158,6 +172,38 @@ public struct ServerIdentity: Sendable, Hashable {
     }
 }
 
+extension ServerIdentity {
+    /// The name errors give an identity that was never on disk.
+    ///
+    /// Not paths, and written so that nobody mistakes them for paths.
+    package static let inMemory = ServerIdentity(
+        certificateChainPath: "<in-memory certificate chain>", privateKeyPath: "<in-memory private key>")
+}
+
+extension LoadedServerIdentity {
+    /// Validates a certificate chain and private key that are already in memory.
+    ///
+    /// `package`, not `public`: it exists for the `SwiftTLSKitTestSupport` product, so that a
+    /// test can serve a certificate it generated without writing the key to disk. It makes
+    /// every check ``ServerIdentity/load(now:)`` makes about contents and none of the checks
+    /// about files — there is no file to have permissions — which is why it is not offered to
+    /// a server: a server's key is on disk, and the permission check is the point.
+    ///
+    /// - Parameters:
+    ///   - certificateChainPEM: The PEM certificate chain, leaf first.
+    ///   - privateKeyPEM: The unencrypted PEM private key for the leaf.
+    ///   - now: The current time, against which the leaf's validity is judged.
+    /// - Returns: The parsed chain and key, with a summary of the leaf.
+    /// - Throws: ``ServerIdentityError``, naming ``ServerIdentity/inMemory`` where a path
+    ///   would be.
+    package static func inMemory(
+        certificateChainPEM: String, privateKeyPEM: String, now: Date
+    ) throws(ServerIdentityError) -> LoadedServerIdentity {
+        try ServerIdentity.inMemory.validate(
+            chainBytes: Array(certificateChainPEM.utf8), keyBytes: Array(privateKeyPEM.utf8), now: now)
+    }
+}
+
 /// A server identity that has been read from disk and found fit to serve.
 ///
 /// Made only by ``ServerIdentity/load(now:)``. Holding one means every check passed at the
@@ -176,7 +222,11 @@ public struct LoadedServerIdentity: Sendable {
     /// What the leaf certificate says: its names, its validity, its fingerprints.
     public let leaf: CertificateSummary
 
-    /// SHA-256 of each certificate in the chain, leaf first: what "the same identity as
-    /// before" is decided by.
+    /// SHA-256 of each certificate in the chain, leaf first: half of what "the same identity
+    /// as before" is decided by.
     let chainFingerprints: [String]
+
+    /// What the key file held, as a digest that can be compared and cannot be read or printed.
+    /// With ``chainFingerprints``, the whole of "the same files as before".
+    let privateKeyFileDigest: PrivateKeyFileDigest
 }

@@ -79,13 +79,24 @@ every place the code forced a deviation; read it before changing the API.
 - **Nothing reads the clock.** The current time is a parameter.
 - **No `withUnsafe*` blocks.** The gate's pointer-escape auditor flags them here even when the
   result is copied; use typed values and implicit `&` instead (see `IPAddressLiteral`).
-- **No private keys in the repository.** Tests generate certificates and keys when they run
-  (`Tests/SwiftTLSKitTests/Support/TestCertificates.swift`).
+- **No private key files in the repository.** Tests generate certificates and keys when they
+  run, with the `SwiftTLSKitTestSupport` product (`Sources/SwiftTLSKitTestSupport/`). The
+  generator is injected and, in this suite, seeded
+  (`Tests/SwiftTLSKitTests/Support/SeededGenerator.swift`), because the gate refuses unseeded
+  randomness in tests. So the test keys are reproducible from the seed and are to be treated
+  as public; nothing trusts a test authority except a client a test builds to trust it.
+- **swift-certificates belongs to `SwiftTLSKitTestSupport` only.** The `SwiftTLSKit` target
+  must not import X509 or SwiftASN1.
+- **No randomness of the package's own.** `SwiftTLSKitTestSupport` takes the caller's
+  generator; nothing in `Sources/` constructs `SystemRandomNumberGenerator`.
 - **No dependency on any other package of the owner's.**
 
 ## Tests
 
 Real TLS handshakes over loopback on a kernel-chosen port. Test certificates are dated from
-1 January 2019 on purpose: Security.framework refuses a server certificate issued after
+1 January 2019 on purpose: Security.framework refuses a server certificate issued from
 1 July 2019 with more than 825 days of validity, and it verifies whenever the system root
-store is consulted.
+store is consulted. (Measured on macOS 27.0.1, the line is 2019-06-30T23:00:00Z.)
+
+A suite that is not about files serves its leaves from memory (`leaf.serverContext(now:)`);
+only the suites that test file handling write a key to a temporary directory.

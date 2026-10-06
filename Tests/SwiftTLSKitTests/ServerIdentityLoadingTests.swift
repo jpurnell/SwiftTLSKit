@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import SwiftTLSKit
+import SwiftTLSKitTestSupport
 
 @Suite("Loading a server identity")
 struct ServerIdentityLoadingTests {
@@ -8,7 +9,7 @@ struct ServerIdentityLoadingTests {
     let fixture: Fixture
 
     init() throws {
-        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority")
+        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority", generator: SeededGenerator(seed: TestSeed.authority))
         fixture = try Fixture()
     }
 
@@ -26,7 +27,7 @@ struct ServerIdentityLoadingTests {
         #expect(loaded.leaf.subjectAlternativeNames == ["localhost", "tls.example", "127.0.0.1"])
         #expect(loaded.leaf.notValidBefore == TestInstant.longLivedStart)
         #expect(loaded.leaf.notValidAfter == TestInstant.longLivedEnd)
-        #expect(loaded.leaf.certificateSHA256 == (try leaf.certificateSHA256))
+        #expect(loaded.leaf.certificateSHA256 == leaf.certificateSHA256)
         #expect(loaded.leaf.publicKeySHA256 == leaf.publicKeySHA256)
     }
 
@@ -38,7 +39,7 @@ struct ServerIdentityLoadingTests {
         #expect(
             loaded.leaf.description
                 == "localhost, 127.0.0.1; valid 2019-01-01T00:00:00Z to 2090-01-01T00:00:00Z; "
-                + "SHA-256 \(try leaf.certificateSHA256)")
+                + "SHA-256 \(leaf.certificateSHA256)")
     }
 
     // MARK: - Files that cannot be used
@@ -48,7 +49,7 @@ struct ServerIdentityLoadingTests {
         let leaf = try authority.issueLeaf()
         let identity = ServerIdentity(
             certificateChainPath: fixture.path("absent.pem"),
-            privateKeyPath: try fixture.write(leaf.keyPEM, to: "privkey.pem", mode: 0o600))
+            privateKeyPath: try fixture.write(leaf.privateKeyPEM, to: "privkey.pem", mode: 0o600))
 
         #expect(throws: ServerIdentityError.unreadable(path: fixture.path("absent.pem"), reason: "No such file or directory")) {
             try identity.load(now: TestInstant.now)
@@ -59,7 +60,7 @@ struct ServerIdentityLoadingTests {
     func missingPrivateKey() throws {
         let leaf = try authority.issueLeaf()
         let identity = ServerIdentity(
-            certificateChainPath: try fixture.write(try leaf.chainPEM, to: "fullchain.pem", mode: 0o644),
+            certificateChainPath: try fixture.write(leaf.chainPEM, to: "fullchain.pem", mode: 0o644),
             privateKeyPath: fixture.path("absent.pem"))
 
         #expect(throws: ServerIdentityError.unreadable(path: fixture.path("absent.pem"), reason: "No such file or directory")) {
@@ -71,8 +72,8 @@ struct ServerIdentityLoadingTests {
     func unreadableCertificateChain() throws {
         let leaf = try authority.issueLeaf()
         let identity = ServerIdentity(
-            certificateChainPath: try fixture.write(try leaf.chainPEM, to: "fullchain.pem", mode: 0o000),
-            privateKeyPath: try fixture.write(leaf.keyPEM, to: "privkey.pem", mode: 0o600))
+            certificateChainPath: try fixture.write(leaf.chainPEM, to: "fullchain.pem", mode: 0o000),
+            privateKeyPath: try fixture.write(leaf.privateKeyPEM, to: "privkey.pem", mode: 0o600))
 
         #expect(throws: ServerIdentityError.unreadable(path: identity.certificateChainPath, reason: "Permission denied")) {
             try identity.load(now: TestInstant.now)
@@ -84,7 +85,7 @@ struct ServerIdentityLoadingTests {
         let leaf = try authority.issueLeaf()
         let identity = ServerIdentity(
             certificateChainPath: fixture.directory.path,
-            privateKeyPath: try fixture.write(leaf.keyPEM, to: "privkey.pem", mode: 0o600))
+            privateKeyPath: try fixture.write(leaf.privateKeyPEM, to: "privkey.pem", mode: 0o600))
 
         #expect(throws: ServerIdentityError.notRegularFile(path: fixture.directory.path)) {
             try identity.load(now: TestInstant.now)
@@ -97,7 +98,7 @@ struct ServerIdentityLoadingTests {
         let fifo = fixture.path("privkey.fifo")
         try #require(mkfifo(fifo, 0o600) == 0)
         let identity = ServerIdentity(
-            certificateChainPath: try fixture.write(try leaf.chainPEM, to: "fullchain.pem", mode: 0o644),
+            certificateChainPath: try fixture.write(leaf.chainPEM, to: "fullchain.pem", mode: 0o644),
             privateKeyPath: fifo)
 
         #expect(throws: ServerIdentityError.notRegularFile(path: fifo)) {
@@ -111,7 +112,7 @@ struct ServerIdentityLoadingTests {
         let padding = String(repeating: "#", count: 1_048_577)
         let identity = ServerIdentity(
             certificateChainPath: try fixture.write(padding, to: "fullchain.pem", mode: 0o644),
-            privateKeyPath: try fixture.write(leaf.keyPEM, to: "privkey.pem", mode: 0o600))
+            privateKeyPath: try fixture.write(leaf.privateKeyPEM, to: "privkey.pem", mode: 0o600))
 
         #expect(throws: ServerIdentityError.fileTooLarge(path: identity.certificateChainPath, limit: 1_048_576)) {
             try identity.load(now: TestInstant.now)
@@ -164,7 +165,7 @@ struct ServerIdentityLoadingTests {
         let identity = try fixture.install(leaf)
         try FileManager.default.setAttributes([.posixPermissions: 0o666], ofItemAtPath: identity.certificateChainPath)
 
-        #expect(try identity.load(now: TestInstant.now).leaf.certificateSHA256 == (try leaf.certificateSHA256))
+        #expect(try identity.load(now: TestInstant.now).leaf.certificateSHA256 == leaf.certificateSHA256)
     }
 
     // MARK: - Contents that cannot be used
@@ -174,7 +175,7 @@ struct ServerIdentityLoadingTests {
         let leaf = try authority.issueLeaf()
         let identity = ServerIdentity(
             certificateChainPath: try fixture.write(contents, to: "fullchain.pem", mode: 0o644),
-            privateKeyPath: try fixture.write(leaf.keyPEM, to: "privkey.pem", mode: 0o600))
+            privateKeyPath: try fixture.write(leaf.privateKeyPEM, to: "privkey.pem", mode: 0o600))
 
         #expect(throws: ServerIdentityError.emptyCertificateChain(path: identity.certificateChainPath)) {
             try identity.load(now: TestInstant.now)
@@ -187,7 +188,7 @@ struct ServerIdentityLoadingTests {
         let damaged = "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"
         let identity = ServerIdentity(
             certificateChainPath: try fixture.write(damaged, to: "fullchain.pem", mode: 0o644),
-            privateKeyPath: try fixture.write(leaf.keyPEM, to: "privkey.pem", mode: 0o600))
+            privateKeyPath: try fixture.write(leaf.privateKeyPEM, to: "privkey.pem", mode: 0o600))
 
         #expect(throws: ServerIdentityError.invalidCertificateChain(path: identity.certificateChainPath)) {
             try identity.load(now: TestInstant.now)
@@ -198,7 +199,7 @@ struct ServerIdentityLoadingTests {
     func damagedKey() throws {
         let leaf = try authority.issueLeaf()
         let identity = ServerIdentity(
-            certificateChainPath: try fixture.write(try leaf.chainPEM, to: "fullchain.pem", mode: 0o644),
+            certificateChainPath: try fixture.write(leaf.chainPEM, to: "fullchain.pem", mode: 0o644),
             privateKeyPath: try fixture.write("MARKER-THAT-MUST-NOT-APPEAR\n", to: "privkey.pem", mode: 0o600))
 
         let expected = ServerIdentityError.invalidPrivateKey(path: identity.privateKeyPath)
@@ -215,8 +216,8 @@ struct ServerIdentityLoadingTests {
         let served = try authority.issueLeaf()
         let other = try authority.issueLeaf()
         let identity = ServerIdentity(
-            certificateChainPath: try fixture.write(try served.chainPEM, to: "fullchain.pem", mode: 0o644),
-            privateKeyPath: try fixture.write(other.keyPEM, to: "privkey.pem", mode: 0o600))
+            certificateChainPath: try fixture.write(served.chainPEM, to: "fullchain.pem", mode: 0o644),
+            privateKeyPath: try fixture.write(other.privateKeyPEM, to: "privkey.pem", mode: 0o600))
 
         #expect(
             throws: ServerIdentityError.privateKeyDoesNotMatchCertificate(

@@ -15,7 +15,7 @@ bootstrap.
 Four properties are the point of it:
 
 - **Half an identity is an error, never plaintext.** A certificate path without a key path, or
-  the reverse, throws ``ServerIdentityError/incompletePair(present:path:)``. The code this
+  the reverse, throws ``IncompleteServerIdentity``. The code this
   replaces built a TLS context only when both were present, so one without the other served
   plaintext without a word.
 - **An identity is judged before it is served.** ``ServerIdentity/load(now:)`` refuses a
@@ -31,6 +31,11 @@ Four properties are the point of it:
 
 Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a client.
 
+To test against it, the package has a second product, `SwiftTLSKitTestSupport`: a certificate
+authority and server certificates generated when the tests run, and a server context built
+from them in memory, so that a test target needs neither a certificate library of its own nor
+a private key on disk.
+
 ## Topics
 
 ### Articles
@@ -43,6 +48,7 @@ Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a cli
 ### Naming and loading a server identity
 
 - ``ServerIdentity``
+- ``IncompleteServerIdentity``
 - ``LoadedServerIdentity``
 - ``CertificateSummary``
 - ``ServerIdentityError``
@@ -56,7 +62,9 @@ Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a cli
 ### Reloading without restarting
 
 - ``ReloadableServerTLS``
+- ``ReloadMode``
 - ``ReloadOutcome``
+- ``SuggestedLogLevel``
 
 ### Trusting a server
 
@@ -65,7 +73,9 @@ Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a cli
 - ``CertificatePin``
 - ``ClientTLSContext``
 - ``ClientTrustError``
+- ``ClientHandshakeFailure``
 
 ### Deciding what a listener exposes
 
 - ``BindExposure``
+- ``isLoopback(host:)``

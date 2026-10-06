@@ -4,6 +4,161 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+**Intended version: 0.2.0.** Not 0.1.1: one change breaks source (`resolve`, below), and
+before 1.0 the minor version is where a break is signalled. The section stays "Unreleased"
+until the tag exists.
+
+What the first two adopters — IconquerServer and IconquerClient — reported after moving to
+0.1.0, fixed. Each had worked round something by writing it again; the migration notes at the
+end say what each can now delete.
+
+### Changed — breaks source
+- **`ServerIdentity.resolve` throws `IncompleteServerIdentity`, not `ServerIdentityError`.** It
+  could only ever fail one way, and now its type says so: `present`, `missing`, `path`. Its
+  message no longer ends "or neither to serve plaintext", which was false for a consumer that
+  refuses plaintext; it stops at "A server identity needs both; one without the other is
+  refused." `description(certificateChainSetting:privateKeySetting:)` writes the same sentence
+  with the consumer's own option names.
+- **`ServerIdentityError.incompletePair(present:path:)` and `ServerIdentityError.Component` are
+  removed.** Nothing can produce them any more, and an error type with a case its thrower
+  cannot throw is the same over-wide type from the other side. `Component` is
+  `IncompleteServerIdentity.Half`.
+
+  What breaks: code that names `.incompletePair`, and code that catches `resolve`'s error into
+  something typed as `ServerIdentityError`. A plain `try` in a throwing function, or
+  `catch { print(error) }`, is unaffected.
+
+### Changed — behaviour
+- **`reloadIfChanged()` compares the private key file as well as the chain.** In 0.1.0 it
+  compared the chain only, so a key file rewritten under an unchanged chain was reported as
+  `.unchanged`. The key file is compared by a SHA-256 of its bytes, held in memory in a type
+  with no accessor that describes itself as redacted and reflects as empty; it cannot reach a
+  log, a `dump` or a debugger summary, and a test walks everything reflection can reach to
+  confirm it. For the record, 0.1.0 never served a stale key: `load` refuses a key that is not
+  the leaf's, so a new key that validates always arrives with a new chain. What was wrong was
+  that "unchanged" claimed more than had been checked.
+- **Loopback is stricter**, and `BindExposure.classify` with it. No longer loopback: an IPv4
+  octet with a leading zero (`0127.0.0.1` is 127.0.0.1 to `inet_pton` here and 87.0.0.1 to
+  `getaddrinfo`, which reads it as octal), square brackets around anything but an IPv6 literal
+  (`[127.0.0.1]`, `[localhost]`), and a zone identifier (`::1%lo0`). All three now classify as
+  exposed, which is the answer that makes a server warn or refuse.
+- `ReloadableServerTLS.init(identity:options:now:)` is a convenience initializer. Nothing a
+  caller writes changes.
+
+### Added
+- **`isLoopback(host:)`**, public: the one definition of loopback — `localhost`, `127.0.0.0/8`,
+  `::1`, either in brackets where brackets belong, and IPv4-mapped loopback. Names are not
+  resolved and `0.0.0.0` is not loopback. For a host a server binds *or* a host a client dials;
+  `BindExposure` is now built on it.
+- **`ReloadMode`** (`.always`, `.ifChanged`), **`reloadOnEach(_:mode:report:)`** and
+  **`reload(_:)`**. The mode has no default: a signal should be `.always` and a timer
+  `.ifChanged`, and the call site is where that is known. `reloadOnEach(_:report:)` is kept
+  and still means `.ifChanged`.
+- **`ReloadOutcome.suggestedLogLevel`** and **`SuggestedLogLevel`** (`info`, `notice`,
+  `warning`): reloaded is `notice`, unchanged is `info`, failed is `warning`. Raw values are
+  swift-log's level names. Still no logging dependency.
+- **`ClientHandshakeFailure`**: `ClientHandshakeFailure(error)` classifies an error from a
+  failed client handshake as `certificateNotTrusted`, `hostnameMismatch`,
+  `pinMismatch(certificateSHA256:publicKeySHA256:)`, `peerDoesNotSpeakTLS`,
+  `noSharedProtocolVersion` or `other(_:)`. BoringSSL's errors are read by packed code from an
+  error that is structurally one, not by searching text. Each class is produced in the suite
+  by a real handshake.
+- **`ClientTrust.consultsSystemRoots`** and **`ClientHandshakeFailure.wrongHostname(under:)`**,
+  for the documented Apple behaviour: with the system's roots consulted, Security.framework
+  judges chain and name together, so a certificate for the wrong host is
+  `certificateNotTrusted` rather than `hostnameMismatch`.
+- **`SwiftTLSKitTestSupport`**, a second library product for test targets: `TestAuthority`,
+  `TestLeaf`, `TestInstant`, `InMemoryServerIdentity`, `TestCertificateError`. An authority and
+  leaves generated when tests run, from a generator the caller injects; and
+  `TestLeaf.serverContext(options:now:)` and `InMemoryServerIdentity.reloadableServerTLS(options:now:)`,
+  which build a server context from memory so that a test need not write a private key to
+  disk. The in-memory entry points in `SwiftTLSKit` itself are `package`, not public.
+- **Platforms: tvOS 17 and visionOS 1**, beside macOS 14 and iOS 17. Both products built for
+  generic iOS, tvOS and visionOS devices with `xcodebuild`.
+- DocC: `IncompleteServerIdentity` and a renamed-settings example in *Serving TLS*; a
+  rewritten *Triggers* section and SIGHUP snippet in *Reloading Without Restarting*; *When the
+  handshake fails* and the Apple hostname table in *Connecting as a Client*.
+
+### Fixed
+- **swift-crypto 4.x is accepted.** The requirement was `from: "3.0.0"`, which stops at 4.0.0
+  and pulled a consumer on 4.5.0 back to 3.15.1. It is now `"3.0.0"..<"5.0.0"`. This package
+  resolves 4.5.2 and its suite runs against it; the library target was also built against
+  exactly 3.0.0. (`SwiftTLSKitTestSupport` cannot go that low: swift-certificates has its own
+  floor for swift-crypto.)
+- The *Reloading Without Restarting* article's SIGHUP snippet used `reloadOnEach`, and so
+  `reloadIfChanged`. It now uses `mode: .always`, buffers at most one pending hangup, and
+  finishes its stream when the signal source is cancelled.
+- README: the package resolves over HTTPS as well as SSH; it said SSH only.
+
+### Notes
+- swift-certificates and swift-asn1 were test-only dependencies of the package. They are now
+  dependencies of the `SwiftTLSKitTestSupport` product. A consumer of `SwiftTLSKit` alone
+  still resolves them — dependencies are declared per package — and neither builds nor links
+  them: a scratch consumer's binary was checked and holds no symbol from the X509 module.
+- Apple's 825-day rule, measured: by bisection with real handshakes on macOS 27.0.1, a
+  long-lived server certificate is refused when its "not before" is 2019-06-30T23:00:00Z or
+  later, whatever the machine's time zone — an hour before the 1 July the policy names. The
+  test certificates start on 1 January 2019.
+- This package's own suite now uses a seeded generator, because the quality gate refuses
+  `SystemRandomNumberGenerator` in tests. Its test keys are therefore reproducible from a seed
+  in the repository. They belong to an authority that only a client built by a test trusts.
+- `from: "0.1.0"` in a consumer's manifest admits this release. Before 1.0, prefer
+  `.upToNextMinor(from:)`.
+
+### Migrating from 0.1.0
+
+**Everyone**
+- `try ServerIdentity.resolve(...)` whose error is rethrown or printed: no change.
+- Naming the error: `ServerIdentityError.incompletePair(present: p, path: q)` becomes
+  `IncompleteServerIdentity(present: p, path: q)`; `ServerIdentityError.Component` becomes
+  `IncompleteServerIdentity.Half`.
+
+**IconquerServer** (`feat/tls`) can delete:
+- In `TransportSecurity.swift`: the `BindExposure.classify(host:tlsConfigured: false).isExposedPlaintext`
+  detour — it is `!isLoopback(host: host)`. `TransportSecurityError.identity` takes an
+  `IncompleteServerIdentity`; its two `--tls-cert` / `--tls-key` branches become
+  `error.description(certificateChainSetting: "--tls-cert", privateKeySetting: "--tls-key")`,
+  and the catch-all `.identity(let error)` branch goes, since nothing else can arrive there.
+  (`pairRemedy` stays only if the wording "rather than served as plain ws://" is wanted.)
+- In `CertificateReload.swift`: `CertificateReload.reload(_:onEach:report:)`, which exists to
+  call `reload()` instead of `reloadIfChanged()` — it is `tls.reloadOnEach(stream, mode: .always, report:)` —
+  and `CertificateReload.level(for:)`, which is
+  `Logger.Level(rawValue: outcome.suggestedLogLevel.rawValue)`. `HangupSignals` stays: signal
+  handling is the executable's.
+- In `Tests/…/TLSTestSupport.swift`: `TestInstant`, `TestAuthority` and `TestLeaf` — import
+  `SwiftTLSKitTestSupport`. `TemporaryDirectory.install` and the free `summary(of:at:)` go
+  wherever the test is not about files: `InMemoryServerIdentity` and `leaf.summary(now:)`
+  replace them. Keep `install` for the tests of key permissions and of a reload landing
+  between two writes. The `lowercaseHex` extension stays: `WebSocketTestClient` uses it.
+- In `Tests/…/WebSocketTestClient.swift`: the `CERTIFICATE_VERIFY_FAILED` string match —
+  `ClientHandshakeFailure(error) == .certificateNotTrusted`.
+- In `Package.swift`: the test dependencies on swift-certificates and swift-asn1; add
+  `SwiftTLSKitTestSupport` to the test target. swift-nio-ssl and swift-crypto stay as test
+  dependencies, because `WebSocketTestClient` reads the peer's certificate from
+  `NIOSSLClientHandler` and hashes it.
+
+**IconquerClient** (`feat/wss`) can delete:
+- In `ServerEndpoint.swift`: `BindExposure.classify(host: host, tlsConfigured: false) == .loopbackPlaintext`,
+  a bind-host question asked of a dial host — it is `isLoopback(host: host)`.
+- In `ServerConnection.swift`: `verificationFailureMarker`, the `NIOSSLExtraError` cast, and the
+  `ClientTrustError.pinMismatch` unpacking in `failure(for:host:handshakeCompleted:)` — one
+  `switch ClientHandshakeFailure(error)`. `peerDoesNotSpeakTLS` and `noSharedProtocolVersion`
+  are new distinctions it can surface or fold into `handshakeFailed`.
+- In `Package.swift`: the package's direct dependency on swift-nio-ssl and the library
+  target's `NIOSSL` product, there only to name `NIOSSLExtraError` (`import NIOSSL` in
+  `ServerConnection.swift` goes with it; `NIOTLS` is swift-nio's and stays); and the test
+  dependencies on swift-crypto, swift-certificates and swift-asn1, which only
+  `TestCertificates.swift` uses.
+- In `Tests/…/Support/TestCertificates.swift`: everything but `TestToken` — `TestInstant`,
+  `TestAuthority`, `TestLeaf`, and `IdentityDirectory` entirely. `leaf.serverContext(now:)`
+  builds the context without the directory, the two files, or the key on disk.
+- Its platform floors need no change; tvOS and visionOS are now declared here.
+
+**Both**, when adopting the test-support types: `TestAuthority(commonName:)` takes a
+`generator:`; `chainPEM`, `certificatePEM` and `certificateSHA256` are plain properties, so
+their `try` goes; `keyPEM` is `privateKeyPEM`; `TestInstant.validFrom` / `validUntil` are
+`longLivedStart` / `longLivedEnd`; `issueLeaf(key:)` is `issueLeaf(reusingKeyOf:)`.
+
 ## [0.1.0] - 2026-10-06
 
 First release. TLS configuration that was duplicated across SwiftMCPServer, VaultMCP's web

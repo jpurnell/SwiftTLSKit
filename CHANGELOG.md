@@ -4,9 +4,10 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
-**Intended version: 0.2.0.** Not 0.1.1: one change breaks source (`resolve`, below), and
-before 1.0 the minor version is where a break is signalled. The section stays "Unreleased"
-until the tag exists.
+## [0.2.0] - 2026-10-06
+
+Not 0.1.1: one change breaks source (`resolve`, below), and before 1.0 the minor version is
+where a break is signalled.
 
 What the first two adopters — IconquerServer and IconquerClient — reported after moving to
 0.1.0, fixed. Each had worked round something by writing it again; the migration notes at the
@@ -210,5 +211,6 @@ view and SwiftMCPClient, written once. Nothing has adopted it yet.
   script it replaced, with `cp`, is `0644` and will be refused until the next renewal
   rewrites it or it is `chmod 600`ed.
 
-[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/0.1.0...HEAD
+[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/jpurnell/SwiftTLSKit/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/jpurnell/SwiftTLSKit/releases/tag/0.1.0

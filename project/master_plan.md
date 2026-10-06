@@ -188,7 +188,7 @@ The reasoning for each, and where the code forced a deviation from the first des
 - [x] 0.1.0
 - [x] First adopters: IconquerServer (`feat/tls`, PR #4) and IconquerClient (`feat/wss`, PR #2)
   moved to 0.1.0
-- [x] Adopter feedback, on `feat/adopter-feedback` — **unreleased; intended as 0.2.0**:
+- [x] Adopter feedback, on `feat/adopter-feedback` — released as **0.2.0**, 2026-10-06:
   - [x] swift-crypto 3.0.0..<5.0.0
   - [x] `reloadIfChanged` covers the key file; `ReloadMode`; `reloadOnEach(_:mode:report:)`
   - [x] `IncompleteServerIdentity` (source break)
@@ -201,7 +201,8 @@ The reasoning for each, and where the code forced a deviation from the first des
 ### What's Next
 - [ ] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — two
   adopted 0.1.0 on 2026-10-06 and reported the nine items above.
-- [ ] Merge `feat/adopter-feedback`, tag 0.2.0, and move the two adopters to it (each has a
+- [x] ~~Merge `feat/adopter-feedback`, tag 0.2.0~~ (done 2026-10-06)
+- [ ] Move the two adopters to it (each has a
   list of what it can delete in CHANGELOG.md).
 - [ ] Build and test on Linux, then declare it.
 
@@ -309,7 +310,7 @@ said otherwise, and two said otherwise the same day. Recorded as they reported i
 
 ---
 
-**Last Updated:** 2026-10-06, later the same day (adopter feedback: module structure, type
+**Last Updated:** 2026-10-06, 0.2.0 tagged (CHANGELOG section, link references and README install line moved to 0.2.0); earlier the same day (adopter feedback: module structure, type
 table, data flow and decisions 10–16 rewritten against the code on `feat/adopter-feedback`;
 "nothing has adopted it" corrected to two adopters; Phase 2's first two items marked started,
 not finished; Phase 3 added and struck through as done but unreleased; the claim in

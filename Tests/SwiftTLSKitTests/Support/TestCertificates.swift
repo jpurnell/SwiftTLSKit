@@ -6,8 +6,14 @@ import X509
 /// Fixed instants. Nothing in the tests reads the clock: certificates carry these, and the
 /// library is handed one of them as "now".
 enum TestInstant {
-    /// 2020-01-01T00:00:00Z — the start of every long-lived test certificate.
-    static let longLivedStart = Date(timeIntervalSince1970: 1_577_836_800)
+    /// 2019-01-01T00:00:00Z — the start of every long-lived test certificate.
+    ///
+    /// Before 1 July 2019 on purpose. On Apple platforms a client that consults the system
+    /// root store verifies through Security.framework, which refuses a TLS server certificate
+    /// issued on or after that date if it is valid for more than 825 days — whoever signed it.
+    /// A certificate that short would have to be issued relative to the day the suite runs,
+    /// which means reading the clock; one dated before the rule is long-lived and fixed.
+    static let longLivedStart = Date(timeIntervalSince1970: 1_546_300_800)
     /// 2090-01-01T00:00:00Z — the end of every long-lived test certificate. Real handshakes
     /// are verified by BoringSSL against the machine's own clock, so this has to be later
     /// than any day the suite will run on.
@@ -16,8 +22,8 @@ enum TestInstant {
     static let shortLivedEnd = Date(timeIntervalSince1970: 1_609_459_200)
     /// 2020-07-01T00:00:00Z — inside the short-lived certificate's validity.
     static let duringShortLived = Date(timeIntervalSince1970: 1_593_561_600)
-    /// 2019-01-01T00:00:00Z — before any test certificate is valid.
-    static let beforeAnything = Date(timeIntervalSince1970: 1_546_300_800)
+    /// 2018-01-01T00:00:00Z — before any test certificate is valid.
+    static let beforeAnything = Date(timeIntervalSince1970: 1_514_764_800)
     /// 2026-10-06T00:00:00Z — the "now" handed to the library unless a test says otherwise.
     static let now = Date(timeIntervalSince1970: 1_791_244_800)
 }

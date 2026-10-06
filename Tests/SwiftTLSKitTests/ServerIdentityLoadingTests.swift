@@ -37,7 +37,7 @@ struct ServerIdentityLoadingTests {
 
         #expect(
             loaded.leaf.description
-                == "localhost, 127.0.0.1; valid 2020-01-01T00:00:00Z to 2090-01-01T00:00:00Z; "
+                == "localhost, 127.0.0.1; valid 2019-01-01T00:00:00Z to 2090-01-01T00:00:00Z; "
                 + "SHA-256 \(try leaf.certificateSHA256)")
     }
 
@@ -303,7 +303,7 @@ struct ServerIdentityLoadingTests {
         #expect(
             ServerIdentityError.notYetValid(path: "/c/fullchain.pem", notValidBefore: TestInstant.longLivedStart)
                 .description
-                == "The leaf certificate in /c/fullchain.pem is not valid until 2020-01-01T00:00:00Z.")
+                == "The leaf certificate in /c/fullchain.pem is not valid until 2019-01-01T00:00:00Z.")
         #expect(
             ServerIdentityError.contextRejected(reason: "unsupported key").description
                 == "The TLS library refused this identity: unsupported key.")

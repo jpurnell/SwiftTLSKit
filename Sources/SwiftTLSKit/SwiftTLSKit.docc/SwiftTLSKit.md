@@ -17,6 +17,19 @@ configuration only. It opens no sockets and owns no event loops.
 - ``CertificateSummary``
 - ``ServerIdentityError``
 
+### Serving TLS
+
+- ``ServerTLSContext``
+- ``ServerTLSOptions``
+- ``MinimumTLSVersion``
+
+### Trusting a server
+
+- ``ClientTrust``
+- ``CertificateSource``
+- ``ClientTLSContext``
+- ``ClientTrustError``
+
 ### Deciding what a listener exposes
 
 - ``BindExposure``

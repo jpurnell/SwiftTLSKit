@@ -5,6 +5,12 @@ All notable changes to SwiftTLSKit will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `ServerTLSContext`, built only from a `LoadedServerIdentity`: minimum TLS 1.2 (TLS 1.3 only
+  with `ServerTLSOptions(minimumVersion: .tls13)`), optional ALPN, no client certificate
+  requested. `addHandler(to:)` puts a `NIOSSLServerHandler` at the front of a pipeline.
+- `ClientTrust` — `systemRoots`, `additionalRoots`, `onlyRoots` — and `ClientTLSContext`,
+  whose `addHandlers(to:serverHostname:)` sets SNI and always verifies the chain and the
+  hostname. There is no case that disables verification.
 - `ServerIdentity`, naming a PEM certificate chain and private key.
   `ServerIdentity.resolve(certificateChainPath:privateKeyPath:)` takes the two optional
   settings a server is configured with and returns no identity when neither is present, the

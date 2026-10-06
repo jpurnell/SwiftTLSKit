@@ -73,6 +73,9 @@ public struct ServerTLSContext: Sendable {
     /// The NIOSSL context, for a consumer that builds its own handler.
     public let sslContext: NIOSSLContext
 
+    /// SHA-256 of each certificate served, leaf first.
+    let chainFingerprints: [String]
+
     /// Builds a context that serves `identity`.
     ///
     /// - Parameters:
@@ -96,6 +99,7 @@ public struct ServerTLSContext: Sendable {
         }
         self.leaf = identity.leaf
         self.options = options
+        self.chainFingerprints = identity.chainFingerprints
     }
 
     /// Reads, validates and builds in one step.

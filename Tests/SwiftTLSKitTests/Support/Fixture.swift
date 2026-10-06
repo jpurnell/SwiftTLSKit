@@ -19,16 +19,18 @@ final class Fixture {
         directory.appendingPathComponent(name).path
     }
 
-    /// Writes `contents` to `name` with exactly `mode`, replacing what was there the way
-    /// `install(1)` does: a new file renamed over the old one.
+    /// Writes `contents` to `name` with exactly `mode`, replacing what was there in one step:
+    /// a new file with the new mode, renamed over the old one. A reader sees the old file or
+    /// the new one, never half of either, and the old file's mode does not survive.
     @discardableResult
     func write(_ contents: String, to name: String, mode: Int) throws -> String {
         let destination = path(name)
         let staging = path(name + ".staging")
         try Data(contents.utf8).write(to: URL(fileURLWithPath: staging))
         try FileManager.default.setAttributes([.posixPermissions: mode], ofItemAtPath: staging)
-        _ = try FileManager.default.replaceItemAt(
-            URL(fileURLWithPath: destination), withItemAt: URL(fileURLWithPath: staging))
+        guard rename(staging, destination) == 0 else {
+            throw CocoaError(.fileWriteUnknown)
+        }
         return destination
     }
 

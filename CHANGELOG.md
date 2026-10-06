@@ -5,6 +5,14 @@ All notable changes to SwiftTLSKit will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `ReloadableServerTLS`, which owns the current `ServerTLSContext` and replaces it from disk
+  without a restart. `reload()` validates completely before swapping; a failed reload keeps
+  the previous context and returns the error as `ReloadOutcome.failed`; live connections keep
+  the context they were accepted under. `reloadIfChanged()` swaps only when the chain on disk
+  differs, and `reloadOnEach(_:report:)` runs it for each element of any `AsyncSequence` — a
+  timer or a stream of `SIGHUP`s. There is deliberately no file watcher.
+- DocC articles: Serving TLS, Reloading Without Restarting, Connecting as a Client, and
+  Design Notes.
 - `ClientTrust.pinned(_:additionalRoots:)` and `CertificatePin`: after the chain and hostname
   are verified as usual, the leaf must also match a pinned SHA-256 of the certificate or of
   its public key. A pin narrows trust and never widens it. It is checked by a handler directly

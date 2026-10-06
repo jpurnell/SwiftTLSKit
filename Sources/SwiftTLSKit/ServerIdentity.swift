@@ -93,7 +93,9 @@ public struct ServerIdentity: Sendable, Hashable {
         guard now <= leaf.notValidAfter else {
             throw .expired(path: certificateChainPath, notValidAfter: leaf.notValidAfter)
         }
-        return LoadedServerIdentity(identity: self, certificateChain: chain, privateKey: key, leaf: leaf)
+        return LoadedServerIdentity(
+            identity: self, certificateChain: chain, privateKey: key, leaf: leaf,
+            chainFingerprints: try fingerprints(of: chain))
     }
 
     private static let certificateMarker = Array("-----BEGIN CERTIFICATE-----".utf8)
@@ -124,6 +126,14 @@ public struct ServerIdentity: Sendable, Hashable {
     private func summarise(_ leaf: NIOSSLCertificate) throws(ServerIdentityError) -> CertificateSummary {
         do {
             return try CertificateSummary(leaf)
+        } catch {
+            throw .invalidCertificateChain(path: certificateChainPath)
+        }
+    }
+
+    private func fingerprints(of chain: [NIOSSLCertificate]) throws(ServerIdentityError) -> [String] {
+        do {
+            return try chain.map { SHA256Hex.digest(of: try $0.toDERBytes()) }
         } catch {
             throw .invalidCertificateChain(path: certificateChainPath)
         }
@@ -165,4 +175,8 @@ public struct LoadedServerIdentity: Sendable {
 
     /// What the leaf certificate says: its names, its validity, its fingerprints.
     public let leaf: CertificateSummary
+
+    /// SHA-256 of each certificate in the chain, leaf first: what "the same identity as
+    /// before" is decided by.
+    let chainFingerprints: [String]
 }

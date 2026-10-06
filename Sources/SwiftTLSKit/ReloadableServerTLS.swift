@@ -46,6 +46,29 @@ public enum ReloadOutcome: Sendable, Hashable {
     case failed(ServerIdentityError, stillServing: CertificateSummary)
 }
 
+extension ReloadOutcome {
+    /// The level this outcome is worth logging at, for a consumer with no view of its own.
+    ///
+    /// - ``reloaded(serving:replacing:)`` is ``SuggestedLogLevel/notice``: the thing an
+    ///   operator renewed a certificate for has happened, and the line records which
+    ///   certificate is now served.
+    /// - ``unchanged(serving:)`` is ``SuggestedLogLevel/info``: a check found nothing to do.
+    ///   On a timer this is nearly every outcome, and many consumers will not log it at all.
+    /// - ``failed(_:stillServing:)`` is ``SuggestedLogLevel/warning``, not an error. The
+    ///   previous identity is still being served, so nothing is broken yet; and a renewal
+    ///   replaces two files, so a reload that lands between the two writes fails this way and
+    ///   the next one succeeds. It becomes an error only if it is still failing when the
+    ///   certificate being served runs out — which
+    ///   ``CertificateSummary/notValidAfter`` of the `stillServing` value says.
+    public var suggestedLogLevel: SuggestedLogLevel {
+        switch self {
+        case .reloaded: return .notice
+        case .unchanged: return .info
+        case .failed: return .warning
+        }
+    }
+}
+
 extension ReloadOutcome: CustomStringConvertible {
     /// A sentence for a log line. It holds paths, names, dates and public fingerprints only.
     public var description: String {

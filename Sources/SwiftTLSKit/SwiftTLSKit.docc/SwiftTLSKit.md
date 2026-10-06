@@ -59,6 +59,7 @@ Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a cli
 - ``ReloadableServerTLS``
 - ``ReloadMode``
 - ``ReloadOutcome``
+- ``SuggestedLogLevel``
 
 ### Trusting a server
 

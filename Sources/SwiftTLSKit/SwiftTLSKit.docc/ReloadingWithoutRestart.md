@@ -43,6 +43,20 @@ the old identity. The next reload, with both files in place, succeeds. Nothing n
 coordinate the two; the failure in between is the mechanism working, and it is worth logging
 at a level below an alarm.
 
+``ReloadOutcome/suggestedLogLevel`` says so in a form code can use: a failed reload is a
+``SuggestedLogLevel/warning``, a reload is a ``SuggestedLogLevel/notice``, and no change is
+``SuggestedLogLevel/info``. The package has no logging dependency, so the level is a small
+enum of its own whose raw values are swift-log's level names:
+
+```swift
+import SwiftTLSKit
+
+func levelName(for outcome: ReloadOutcome) -> String {
+    // With swift-log: Logger.Level(rawValue: outcome.suggestedLogLevel.rawValue)
+    outcome.suggestedLogLevel.rawValue
+}
+```
+
 ## Triggers
 
 There are two, and the package leaves the choice of when to the server.
@@ -98,7 +112,11 @@ func reloadOnHangup(_ tls: ReloadableServerTLS, logger: Logger) async {
 
     // `.always`: a hangup is an operator saying "read them again".
     await tls.reloadOnEach(hangups, mode: .always) { outcome in
-        logger.notice("\(outcome.description, privacy: .public)")
+        switch outcome.suggestedLogLevel {
+        case .info: logger.info("\(outcome.description, privacy: .public)")
+        case .notice: logger.notice("\(outcome.description, privacy: .public)")
+        case .warning: logger.warning("\(outcome.description, privacy: .public)")
+        }
     }
     source.cancel()
 }

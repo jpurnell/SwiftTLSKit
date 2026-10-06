@@ -291,6 +291,32 @@ struct ReloadTests {
         #expect(tls.current.sslContext !== original)
     }
 
+    // MARK: - Log levels
+
+    /// The levels a server that had to choose for itself chose (IconquerServer's
+    /// `CertificateReload.level(for:)`), which is where the suggestion comes from.
+    @Test("A reload is a notice, no change is info, and a failure is a warning — not an error")
+    func suggestedLogLevels() throws {
+        let first = try summary(of: try authority.issueLeaf())
+        let second = try summary(of: try authority.issueLeaf())
+
+        #expect(ReloadOutcome.reloaded(serving: second, replacing: first).suggestedLogLevel == .notice)
+        #expect(ReloadOutcome.unchanged(serving: first).suggestedLogLevel == .info)
+        #expect(
+            ReloadOutcome.failed(.emptyCertificateChain(path: "/c/fullchain.pem"), stillServing: first)
+                .suggestedLogLevel == .warning)
+    }
+
+    /// swift-log's `Logger.Level` is a `String` enum whose raw values are these words, so a
+    /// consumer converts with `Logger.Level(rawValue:)` and this package needs no dependency.
+    @Test("The level's raw values are swift-log's level names, in order of severity")
+    func logLevelRawValues() {
+        #expect(SuggestedLogLevel.allCases.map(\.rawValue) == ["info", "notice", "warning"])
+        #expect(SuggestedLogLevel.info < .notice)
+        #expect(SuggestedLogLevel.notice < .warning)
+        #expect(SuggestedLogLevel.allCases.sorted() == [.info, .notice, .warning])
+    }
+
     // MARK: - Messages
 
     @Test("An outcome reads as a log line")

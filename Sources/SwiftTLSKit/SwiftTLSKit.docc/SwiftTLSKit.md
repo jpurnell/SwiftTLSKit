@@ -68,6 +68,7 @@ Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a cli
 - ``CertificatePin``
 - ``ClientTLSContext``
 - ``ClientTrustError``
+- ``ClientHandshakeFailure``
 
 ### Deciding what a listener exposes
 

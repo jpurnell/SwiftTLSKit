@@ -60,7 +60,7 @@ struct PinningTests {
         let server = try await LoopbackServer.start(serving: try context(serving: served))
         let client = try pinned([try CertificatePin.certificate(sha256: try expected.certificateSHA256)])
 
-        let refusal = await HandshakeFailure.of {
+        let refusal = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: client, serverHostname: "localhost")
         }
         #expect(
@@ -76,7 +76,7 @@ struct PinningTests {
         let server = try await LoopbackServer.start(serving: try context(serving: served))
         let client = try pinned([try CertificatePin.publicKey(sha256: expected.publicKeySHA256)])
 
-        let refusal = await HandshakeFailure.of {
+        let refusal = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: client, serverHostname: "localhost")
         }
         #expect(
@@ -94,7 +94,7 @@ struct PinningTests {
             try CertificatePin.certificate(sha256: leaf.publicKeySHA256),
         ])
 
-        let refusal = await HandshakeFailure.of {
+        let refusal = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: crossed, serverHostname: "localhost")
         }
         #expect(
@@ -135,7 +135,7 @@ struct PinningTests {
         try await byKey.close()
 
         let byCertificate = try pinned([try CertificatePin.certificate(sha256: try original.certificateSHA256)])
-        let refusal = await HandshakeFailure.of {
+        let refusal = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: byCertificate, serverHostname: "localhost")
         }
         #expect(
@@ -153,11 +153,11 @@ struct PinningTests {
         let client = try pinned(
             [try CertificatePin.certificate(sha256: try leaf.certificateSHA256)], trustingAuthority: false)
 
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: client, serverHostname: "localhost")
         }
 
-        #expect(failure == .certificateVerificationFailed)
+        #expect(failure == .certificateNotTrusted)
         try await server.stop()
     }
 
@@ -167,7 +167,7 @@ struct PinningTests {
         let server = try await LoopbackServer.start(serving: try context(serving: leaf))
         let client = try pinned([try CertificatePin.certificate(sha256: try leaf.certificateSHA256)])
 
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: client, serverHostname: "elsewhere.example")
         }
         #expect(failure == .wrongHostnameWithSystemRoots)
@@ -197,7 +197,7 @@ struct PinningTests {
         #expect(await received.next() == 11)
 
         let mismatching = try pinned([try CertificatePin.certificate(sha256: try other.certificateSHA256)])
-        let refusal = await HandshakeFailure.of {
+        let refusal = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port) { pipeline in
                 try mismatching.addHandlers(to: pipeline, serverHostname: "localhost")
                 try pipeline.addHandler(EarlyWriter("credentials"))

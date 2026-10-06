@@ -63,11 +63,11 @@ struct HandshakeTests {
         let server = try await serve(try authority.issueLeaf())
         let context = try ClientTLSContext(trust: .systemRoots)
 
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "localhost")
         }
 
-        #expect(failure == .certificateVerificationFailed)
+        #expect(failure == .certificateNotTrusted)
         try await server.stop()
     }
 
@@ -77,11 +77,11 @@ struct HandshakeTests {
         let stranger = try TestAuthority(commonName: "Some Other Authority")
         let context = try ClientTLSContext(trust: .onlyRoots([.pem(try stranger.certificatePEM)]))
 
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "localhost")
         }
 
-        #expect(failure == .certificateVerificationFailed)
+        #expect(failure == .certificateNotTrusted)
         try await server.stop()
     }
 
@@ -92,7 +92,7 @@ struct HandshakeTests {
         let server = try await serve(try authority.issueLeaf(dnsNames: ["localhost"]))
         let context = try trustingAuthority()
 
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "elsewhere.example")
         }
 
@@ -106,7 +106,7 @@ struct HandshakeTests {
         let server = try await serve(leaf)
         let context = try ClientTLSContext(trust: .additionalRoots([.pem(try authority.certificatePEM)]))
 
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "elsewhere.example")
         }
         #expect(failure == .wrongHostnameWithSystemRoots)
@@ -136,7 +136,7 @@ struct HandshakeTests {
         let server = try await serve(try authority.issueLeaf(dnsNames: ["localhost"]))
         let context = try trustingAuthority()
 
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "127.0.0.1")
         }
 
@@ -156,7 +156,7 @@ struct HandshakeTests {
 
         configuration.maximumTLSVersion = .tlsv11
         let oldClient = configuration
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, configuration: oldClient, serverHostname: "localhost")
         }
         #expect(failure == .noSharedProtocolVersion)
@@ -178,7 +178,7 @@ struct HandshakeTests {
         configuration.maximumTLSVersion = .tlsv12
         let cappedClient = configuration
 
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, configuration: cappedClient, serverHostname: "localhost")
         }
         #expect(failure == .noSharedProtocolVersion)
@@ -206,7 +206,7 @@ struct HandshakeTests {
 
         let strict = try ClientTLSContext(
             trust: .onlyRoots([.pem(try authority.certificatePEM)]), minimumVersion: .tls13)
-        let failure = await HandshakeFailure.of {
+        let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: strict, serverHostname: "localhost")
         }
         #expect(failure == .noSharedProtocolVersion)

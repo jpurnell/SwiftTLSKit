@@ -27,6 +27,7 @@ configuration only. It opens no sockets and owns no event loops.
 
 - ``ClientTrust``
 - ``CertificateSource``
+- ``CertificatePin``
 - ``ClientTLSContext``
 - ``ClientTrustError``
 

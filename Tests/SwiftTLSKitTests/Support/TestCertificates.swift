@@ -64,9 +64,10 @@ struct TestAuthority {
         dnsNames: [String] = ["localhost"],
         ipv4Addresses: [[UInt8]] = [],
         notValidBefore: Date = TestInstant.longLivedStart,
-        notValidAfter: Date = TestInstant.longLivedEnd
+        notValidAfter: Date = TestInstant.longLivedEnd,
+        key existingKey: P256.Signing.PrivateKey? = nil
     ) throws -> TestLeaf {
-        let leafKey = P256.Signing.PrivateKey()
+        let leafKey = existingKey ?? P256.Signing.PrivateKey()
         let names = dnsNames.map { GeneralName.dnsName($0) }
             + ipv4Addresses.map { GeneralName.ipAddress(ASN1OctetString(contentBytes: $0[...])) }
         let leaf = try Certificate(
@@ -124,6 +125,20 @@ struct TestLeaf {
 
     private func hex(_ digest: SHA256.Digest) -> String {
         digest.map { byte in
+            let text = String(byte, radix: 16)
+            return text.count == 1 ? "0" + text : text
+        }.joined()
+    }
+}
+
+/// SHA-256 fingerprints computed by swift-certificates and swift-crypto, independently of the
+/// library under test.
+enum SHA256Fingerprint {
+    static func ofPEMCertificate(_ pem: String) throws -> String {
+        let certificate = try Certificate(pemEncoded: pem)
+        var serializer = DER.Serializer()
+        try serializer.serialize(certificate)
+        return SHA256.hash(data: serializer.serializedBytes).map { byte in
             let text = String(byte, radix: 16)
             return text.count == 1 ? "0" + text : text
         }.joined()

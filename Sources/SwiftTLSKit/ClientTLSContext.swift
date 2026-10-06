@@ -38,6 +38,7 @@ public struct ClientTLSContext: Sendable {
     public let rootFingerprints: [String]
 
     private let sslContext: NIOSSLContext
+    private let pins: [CertificatePin]
 
     /// Reads the trust's roots and builds the context.
     ///
@@ -62,12 +63,17 @@ public struct ClientTLSContext: Sendable {
         }
         self.trust = trust
         self.rootFingerprints = resolved.rootFingerprints
+        self.pins = resolved.pins
     }
 
     /// The handlers that secure one connection to `serverHostname`.
     ///
     /// Add all of them, in order, ahead of the application's handlers —
     /// ``addHandlers(to:serverHostname:)`` does exactly that.
+    ///
+    /// For ``ClientTrust/pinned(_:additionalRoots:)`` there are two: the TLS handler, and the
+    /// handler that checks the pin and holds application data until it has. Leaving the second
+    /// out leaves the pin unenforced.
     ///
     /// - Parameter serverHostname: The name or IP address of the server being connected to.
     /// - Returns: The handlers, outermost first.
@@ -78,11 +84,14 @@ public struct ClientTLSContext: Sendable {
         // An address is not sent as SNI. NIOSSL then verifies the certificate against the
         // address the channel is connected to.
         let serverName: String? = IPAddressLiteral.isAddress(serverHostname) ? nil : serverHostname
+        let tls: NIOSSLClientHandler
         do {
-            return [try NIOSSLClientHandler(context: sslContext, serverHostname: serverName)]
+            tls = try NIOSSLClientHandler(context: sslContext, serverHostname: serverName)
         } catch {
             throw .invalidServerHostname(serverHostname)
         }
+        guard !pins.isEmpty else { return [tls] }
+        return [tls, PinVerificationHandler(pins: pins)]
     }
 
     /// Puts the TLS handlers at the front of a connection's pipeline.

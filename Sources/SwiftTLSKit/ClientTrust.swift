@@ -45,6 +45,25 @@ public enum ClientTrust: Sendable, Hashable {
     /// - Parameter sources: The only certificates to trust. An empty list is an error.
     case onlyRoots([CertificateSource])
 
+    /// The platform's root store, any supplied certificates, **and** a pin the server's own
+    /// certificate must match.
+    ///
+    /// A pin narrows trust; it never widens it. The chain is validated and the hostname is
+    /// checked exactly as for ``additionalRoots(_:)``, and then the leaf must also match one
+    /// of the pins. Several pins are alternatives, which is how a key is rotated: pin the
+    /// current one and its successor.
+    ///
+    /// The pin is checked by a handler directly after the handshake, before any application
+    /// byte is sent or delivered, so it is enforced only through
+    /// ``ClientTLSContext/addHandlers(to:serverHostname:)``. ``makeTLSConfiguration(minimumVersion:applicationProtocols:)``
+    /// throws for this case rather than return a configuration that would silently drop it.
+    ///
+    /// - Parameters:
+    ///   - pins: The digests, any one of which the leaf must match. An empty list is an error.
+    ///   - additionalRoots: Certificates to trust besides the platform's, for a server whose
+    ///     authority is private. May be empty.
+    case pinned([CertificatePin], additionalRoots: [CertificateSource] = [])
+
     /// The NIOSSL client configuration this trust amounts to.
     ///
     /// For libraries that take a `TLSConfiguration` rather than a handler. Chain and hostname
@@ -55,12 +74,15 @@ public enum ClientTrust: Sendable, Hashable {
     ///   - minimumVersion: The oldest TLS version accepted.
     ///   - applicationProtocols: The ALPN protocols offered, most preferred first.
     /// - Returns: The configuration.
-    /// - Throws: ``ClientTrustError`` if a root cannot be read.
+    /// - Throws: ``ClientTrustError`` if a root cannot be read, and
+    ///   ``ClientTrustError/pinsNeedHandlers`` for ``pinned(_:additionalRoots:)``, which a
+    ///   configuration alone cannot enforce.
     public func makeTLSConfiguration(
         minimumVersion: MinimumTLSVersion = .tls12,
         applicationProtocols: [String] = []
     ) throws(ClientTrustError) -> TLSConfiguration {
-        try resolve().configuration(minimumVersion: minimumVersion, applicationProtocols: applicationProtocols)
+        if case .pinned = self { throw .pinsNeedHandlers }
+        return try resolve().configuration(minimumVersion: minimumVersion, applicationProtocols: applicationProtocols)
     }
 
     /// Reads every source. All or nothing: a subset of the roots someone asked for is a
@@ -73,6 +95,14 @@ public enum ClientTrust: Sendable, Hashable {
             return try Self.read(sources, usesSystemRoots: true)
         case .onlyRoots(let sources):
             return try Self.read(sources, usesSystemRoots: false)
+        case .pinned(let pins, let sources):
+            guard !pins.isEmpty else { throw .noPins }
+            guard !sources.isEmpty else {
+                return ResolvedClientTrust(usesSystemRoots: true, roots: [], rootFingerprints: [], pins: pins)
+            }
+            let roots = try Self.read(sources, usesSystemRoots: true)
+            return ResolvedClientTrust(
+                usesSystemRoots: true, roots: roots.roots, rootFingerprints: roots.rootFingerprints, pins: pins)
         }
     }
 
@@ -128,6 +158,7 @@ struct ResolvedClientTrust: Sendable {
     let usesSystemRoots: Bool
     let roots: [NIOSSLCertificate]
     let rootFingerprints: [String]
+    var pins: [CertificatePin] = []
 
     /// The one place a client `TLSConfiguration` is built. The only fields written are the
     /// ones that say which roots to verify against, how old a protocol to accept, and which

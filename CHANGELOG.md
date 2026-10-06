@@ -5,6 +5,11 @@ All notable changes to SwiftTLSKit will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- `ClientTrust.pinned(_:additionalRoots:)` and `CertificatePin`: after the chain and hostname
+  are verified as usual, the leaf must also match a pinned SHA-256 of the certificate or of
+  its public key. A pin narrows trust and never widens it. It is checked by a handler directly
+  after the handshake, which holds application writes until the verdict; a pinned trust
+  refuses to be flattened into a bare `TLSConfiguration`, which could not enforce it.
 - `ServerTLSContext`, built only from a `LoadedServerIdentity`: minimum TLS 1.2 (TLS 1.3 only
   with `ServerTLSOptions(minimumVersion: .tls13)`), optional ALPN, no client certificate
   requested. `addHandler(to:)` puts a `NIOSSLServerHandler` at the front of a pipeline.

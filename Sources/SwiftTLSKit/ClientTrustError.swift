@@ -29,6 +29,37 @@ public enum ClientTrustError: Error, Sendable, Hashable {
     ///
     /// - Parameter reason: The library's description.
     case contextRejected(reason: String)
+
+    /// The text given for a pin is not a SHA-256 digest.
+    ///
+    /// - Parameter text: The text that was refused.
+    case invalidPin(String)
+
+    /// A pinned trust was given no pins.
+    ///
+    /// Refused rather than read as "no pinning", which is the opposite of what was asked for.
+    case noPins
+
+    /// A pinned trust was asked for a bare `TLSConfiguration`.
+    ///
+    /// The pin is enforced by a channel handler, so a configuration handed to a library that
+    /// builds its own handlers would connect without it.
+    case pinsNeedHandlers
+
+    /// The server's certificate chain and hostname were valid, and its leaf matched no pin.
+    ///
+    /// Delivered through the channel pipeline as an error, after which the connection is
+    /// closed. No application data was sent.
+    ///
+    /// - Parameters:
+    ///   - certificateSHA256: SHA-256 of the certificate the server presented, lowercase hex.
+    ///   - publicKeySHA256: SHA-256 of its SubjectPublicKeyInfo, lowercase hex.
+    case pinMismatch(certificateSHA256: String, publicKeySHA256: String)
+
+    /// More writes were issued before the handshake finished than a pinned connection holds.
+    ///
+    /// - Parameter limit: The number of writes held.
+    case tooManyWritesBeforeHandshake(limit: Int)
 }
 
 extension ClientTrustError: CustomStringConvertible {
@@ -52,6 +83,19 @@ extension ClientTrustError: CustomStringConvertible {
             return "\"\(name)\" cannot be used as a TLS server name."
         case .contextRejected(let reason):
             return "The TLS library refused this client configuration: \(reason)."
+        case .invalidPin(let text):
+            return "\"\(text)\" is not a SHA-256 digest. "
+                + "Give 64 hexadecimal digits (colons allowed) or 44 characters of base64."
+        case .noPins:
+            return "A pinned trust was given no pins."
+        case .pinsNeedHandlers:
+            return "A pinned trust cannot be expressed as a TLSConfiguration: the pin is checked by a handler "
+                + "after the handshake. Use ClientTLSContext.addHandlers(to:serverHostname:)."
+        case .pinMismatch(let certificateSHA256, let publicKeySHA256):
+            return "The server's certificate matches none of the pins. It presented a certificate with SHA-256 "
+                + "\(certificateSHA256) and a public key with SHA-256 \(publicKeySHA256). Nothing was sent to it."
+        case .tooManyWritesBeforeHandshake(let limit):
+            return "More than \(limit) writes were queued before the TLS handshake finished."
         }
     }
 }

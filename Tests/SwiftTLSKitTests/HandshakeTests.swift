@@ -67,7 +67,7 @@ struct HandshakeTests {
             try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "localhost")
         }
 
-        #expect(failure == .untrustedCertificate)
+        #expect(failure == .certificateVerificationFailed)
         try await server.stop()
     }
 
@@ -81,7 +81,7 @@ struct HandshakeTests {
             try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "localhost")
         }
 
-        #expect(failure == .untrustedCertificate)
+        #expect(failure == .certificateVerificationFailed)
         try await server.stop()
     }
 
@@ -97,6 +97,24 @@ struct HandshakeTests {
         }
 
         #expect(failure == .hostnameMismatch)
+        try await server.stop()
+    }
+
+    @Test("The hostname is checked when the system's roots are consulted too")
+    func hostnameMismatchWithAdditionalRoots() async throws {
+        let leaf = try authority.issueLeaf(dnsNames: ["localhost"])
+        let server = try await serve(leaf)
+        let context = try ClientTLSContext(trust: .additionalRoots([.pem(try authority.certificatePEM)]))
+
+        let failure = await HandshakeFailure.of {
+            try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "elsewhere.example")
+        }
+        #expect(failure == .wrongHostnameWithSystemRoots)
+
+        // The same client and server with the right name: so it was the name.
+        let named = try await LoopbackClient.connect(port: server.port, context: context, serverHostname: "localhost")
+        #expect(named.report.peerCertificateSHA256 == (try leaf.certificateSHA256))
+        try await named.close()
         try await server.stop()
     }
 

@@ -10,11 +10,16 @@ import PackageDescription
 let package = Package(
     name: "SwiftTLSKit",
     // macOS 14 is the floor of SwiftMCPServer and VaultMCP, the server-side adopters, and of the
-    // x86_64 deployment host. iOS is declared because IconquerClient — a planned adopter of the
-    // client half — ships there.
+    // x86_64 deployment host. iOS, tvOS and visionOS are declared because IconquerClient — an
+    // adopter of the client half — ships on all three. tvOS 17 and visionOS 1 are the releases
+    // of the same year and SDK generation as iOS 17 and macOS 14; a floor below a sibling's
+    // would promise a platform the others were never built for. Each is built with
+    // `xcodebuild -destination generic/platform=…`, not just declared.
     platforms: [
         .macOS(.v14),
         .iOS(.v17),
+        .tvOS(.v17),
+        .visionOS(.v1),
     ],
     products: [
         .library(name: "SwiftTLSKit", targets: ["SwiftTLSKit"]),

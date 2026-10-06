@@ -10,6 +10,13 @@ configuration only. It opens no sockets and owns no event loops.
 
 ## Topics
 
+### Naming and loading a server identity
+
+- ``ServerIdentity``
+- ``LoadedServerIdentity``
+- ``CertificateSummary``
+- ``ServerIdentityError``
+
 ### Deciding what a listener exposes
 
 - ``BindExposure``

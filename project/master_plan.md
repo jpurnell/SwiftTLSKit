@@ -129,6 +129,7 @@ The reasoning for each, and where the code forced a deviation from the first des
 
 ### What's Working
 - [x] SwiftTLSKit
+- [x] SwiftTLSKitTestSupport
 - [x] Vendored guidelines, hooks, gate configuration
 - [x] `BindExposure`
 - [x] `ServerIdentity.resolve` and `load(now:)`, with every refusal typed and tested

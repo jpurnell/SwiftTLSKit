@@ -121,6 +121,8 @@ public final class ReloadableServerTLS: Sendable {
     public let options: ServerTLSOptions
 
     private let now: @Sendable () -> Date
+    /// Where an identity comes from at each load: the files, for every reloader a server makes.
+    private let loadIdentity: @Sendable (Date) throws(ServerIdentityError) -> LoadedServerIdentity
     private let currentContext: NIOLockedValueBox<ServerTLSContext>
     /// Held for the whole of a reload, so that two do not interleave their read and their swap.
     private let reloading = NIOLock()
@@ -135,15 +137,38 @@ public final class ReloadableServerTLS: Sendable {
     /// - Throws: ``ServerIdentityError`` if the identity cannot be served. A server that cannot
     ///   load its identity at start-up has no earlier one to fall back to, so this is an error
     ///   rather than a quiet start without TLS.
-    public init(
+    public convenience init(
         identity: ServerIdentity,
         options: ServerTLSOptions = ServerTLSOptions(),
         now: @escaping @Sendable () -> Date
     ) throws(ServerIdentityError) {
+        try self.init(identity: identity, options: options, now: now) { instant throws(ServerIdentityError) in
+            try identity.load(now: instant)
+        }
+    }
+
+    /// Loads an identity for the first time from wherever `loadIdentity` gets it.
+    ///
+    /// `package`, not `public`: the `SwiftTLSKitTestSupport` product uses it to reload from
+    /// memory. A server reloads from disk, through ``init(identity:options:now:)``.
+    ///
+    /// - Parameters:
+    ///   - identity: What ``identity`` reports, and what errors name.
+    ///   - options: The minimum TLS version and ALPN protocols.
+    ///   - now: Called at each load to ask what time it is.
+    ///   - loadIdentity: Called at each load with the time `now` gave, to produce the identity.
+    /// - Throws: Whatever `loadIdentity` throws the first time.
+    package init(
+        identity: ServerIdentity,
+        options: ServerTLSOptions,
+        now: @escaping @Sendable () -> Date,
+        loadIdentity: @escaping @Sendable (Date) throws(ServerIdentityError) -> LoadedServerIdentity
+    ) throws(ServerIdentityError) {
         self.identity = identity
         self.options = options
         self.now = now
-        self.currentContext = NIOLockedValueBox(try ServerTLSContext.load(identity, options: options, now: now()))
+        self.loadIdentity = loadIdentity
+        self.currentContext = NIOLockedValueBox(try ServerTLSContext(identity: try loadIdentity(now()), options: options))
     }
 
     /// The context new connections are being given.
@@ -263,7 +288,7 @@ public final class ReloadableServerTLS: Sendable {
         let serving = current
         let candidate: ServerTLSContext
         switch Result(catching: { () throws(ServerIdentityError) in
-            try ServerTLSContext.load(identity, options: options, now: now())
+            try ServerTLSContext(identity: try loadIdentity(now()), options: options)
         }) {
         case .failure(let error):
             return .failed(error, stillServing: serving.leaf)

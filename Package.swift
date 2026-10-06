@@ -18,6 +18,11 @@ let package = Package(
     ],
     products: [
         .library(name: "SwiftTLSKit", targets: ["SwiftTLSKit"]),
+        // For a consumer's TEST targets only: a certificate authority and leaves generated when
+        // the tests run, and a server context built from them in memory. It is a separate
+        // product so that swift-certificates is linked by a test target that asks for it and
+        // by nothing else — `SwiftTLSKit` itself does not depend on it.
+        .library(name: "SwiftTLSKitTestSupport", targets: ["SwiftTLSKitTestSupport"]),
     ],
     dependencies: [
         // Floors match VaultMCP's, which are the advisory-fixed versions the portfolio settled
@@ -34,8 +39,9 @@ let package = Package(
         // `SHA256.hash(data:)` and, in the test-support product, P-256 keys — differs between
         // the two, and both ends of the range are built: see CHANGELOG.
         .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
-        // TEST ONLY. Certificates and keys are generated when the tests run, so no private key
-        // is ever checked in. Absent from the library target on purpose.
+        // For `SwiftTLSKitTestSupport` ONLY. Certificates and keys are generated when tests run,
+        // so no private key is ever checked in. Absent from the `SwiftTLSKit` target on purpose:
+        // a consumer of that product alone resolves these two and never builds or links them.
         .package(url: "https://github.com/apple/swift-certificates.git", from: "1.5.0"),
         .package(url: "https://github.com/apple/swift-asn1.git", from: "1.1.0"),
         .package(url: "https://github.com/swiftlang/swift-docc-plugin", from: "1.4.3"),
@@ -51,15 +57,28 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
+        .target(
+            name: "SwiftTLSKitTestSupport",
+            dependencies: [
+                "SwiftTLSKit",
+                .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+                .product(name: "Crypto", package: "swift-crypto"),
+                .product(name: "X509", package: "swift-certificates"),
+                .product(name: "SwiftASN1", package: "swift-asn1"),
+            ]
+        ),
         .testTarget(
             name: "SwiftTLSKitTests",
             dependencies: [
                 "SwiftTLSKit",
+                "SwiftTLSKitTestSupport",
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOTLS", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),
                 .product(name: "Crypto", package: "swift-crypto"),
+                // To read back what the test-support product issued, with a parser that is
+                // neither it nor SwiftTLSKit.
                 .product(name: "X509", package: "swift-certificates"),
                 .product(name: "SwiftASN1", package: "swift-asn1"),
             ]

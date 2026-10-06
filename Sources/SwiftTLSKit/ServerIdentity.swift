@@ -81,7 +81,17 @@ public struct ServerIdentity: Sendable, Hashable {
     public func load(now: Date) throws(ServerIdentityError) -> LoadedServerIdentity {
         let chainBytes = try PEMFile.read(path: certificateChainPath, mustBeOwnerOnly: false)
         let keyBytes = try PEMFile.read(path: privateKeyPath, mustBeOwnerOnly: true)
+        return try validate(chainBytes: chainBytes, keyBytes: keyBytes, now: now)
+    }
 
+    /// Every check that is about what the two files hold rather than about the files: the
+    /// chain parses and is not empty, the key parses, the key is the leaf's, and the leaf is
+    /// valid at `now`.
+    ///
+    /// Errors name this identity's paths, whatever the bytes came from.
+    func validate(
+        chainBytes: [UInt8], keyBytes: [UInt8], now: Date
+    ) throws(ServerIdentityError) -> LoadedServerIdentity {
         let chain = try parseChain(chainBytes)
         guard let leafCertificate = chain.first else {
             throw .emptyCertificateChain(path: certificateChainPath)
@@ -159,6 +169,38 @@ public struct ServerIdentity: Sendable, Hashable {
         } catch {
             throw .contextRejected(reason: String(describing: error))
         }
+    }
+}
+
+extension ServerIdentity {
+    /// The name errors give an identity that was never on disk.
+    ///
+    /// Not paths, and written so that nobody mistakes them for paths.
+    package static let inMemory = ServerIdentity(
+        certificateChainPath: "<in-memory certificate chain>", privateKeyPath: "<in-memory private key>")
+}
+
+extension LoadedServerIdentity {
+    /// Validates a certificate chain and private key that are already in memory.
+    ///
+    /// `package`, not `public`: it exists for the `SwiftTLSKitTestSupport` product, so that a
+    /// test can serve a certificate it generated without writing the key to disk. It makes
+    /// every check ``ServerIdentity/load(now:)`` makes about contents and none of the checks
+    /// about files — there is no file to have permissions — which is why it is not offered to
+    /// a server: a server's key is on disk, and the permission check is the point.
+    ///
+    /// - Parameters:
+    ///   - certificateChainPEM: The PEM certificate chain, leaf first.
+    ///   - privateKeyPEM: The unencrypted PEM private key for the leaf.
+    ///   - now: The current time, against which the leaf's validity is judged.
+    /// - Returns: The parsed chain and key, with a summary of the leaf.
+    /// - Throws: ``ServerIdentityError``, naming ``ServerIdentity/inMemory`` where a path
+    ///   would be.
+    package static func inMemory(
+        certificateChainPEM: String, privateKeyPEM: String, now: Date
+    ) throws(ServerIdentityError) -> LoadedServerIdentity {
+        try ServerIdentity.inMemory.validate(
+            chainBytes: Array(certificateChainPEM.utf8), keyBytes: Array(privateKeyPEM.utf8), now: now)
     }
 }
 

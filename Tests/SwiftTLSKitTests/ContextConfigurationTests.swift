@@ -1,6 +1,7 @@
 import NIOSSL
 import Testing
 import SwiftTLSKit
+import SwiftTLSKitTestSupport
 
 @Suite("Context configuration")
 struct ContextConfigurationTests {
@@ -8,7 +9,7 @@ struct ContextConfigurationTests {
     let fixture: Fixture
 
     init() throws {
-        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority")
+        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority", generator: SeededGenerator(seed: TestSeed.authority))
         fixture = try Fixture()
     }
 
@@ -37,7 +38,7 @@ struct ContextConfigurationTests {
 
     @Test("Every trust verifies the chain and the hostname, at TLS 1.2 or newer")
     func verificationIsAlwaysFull() throws {
-        let root = CertificateSource.pem(try authority.certificatePEM)
+        let root = CertificateSource.pem(authority.certificatePEM)
         for trust in [ClientTrust.systemRoots, .additionalRoots([root]), .onlyRoots([root])] {
             let configuration = try trust.makeTLSConfiguration()
             #expect(configuration.certificateVerification == .fullVerification)
@@ -55,7 +56,7 @@ struct ContextConfigurationTests {
 
     @Test("Additional roots keep the platform default and add the supplied certificates")
     func additionalRootsConfiguration() throws {
-        let pem = try authority.certificatePEM
+        let pem = authority.certificatePEM
         let configuration = try ClientTrust.additionalRoots([.pem(pem)]).makeTLSConfiguration()
         #expect(configuration.trustRoots == .default)
         #expect(configuration.additionalTrustRoots == [.certificates(try NIOSSLCertificate.fromPEMBytes(Array(pem.utf8)))])
@@ -63,7 +64,7 @@ struct ContextConfigurationTests {
 
     @Test("Only-roots replaces the trust store with the supplied certificates")
     func onlyRootsConfiguration() throws {
-        let pem = try authority.certificatePEM
+        let pem = authority.certificatePEM
         let configuration = try ClientTrust.onlyRoots([.pem(pem)]).makeTLSConfiguration()
         #expect(configuration.trustRoots == .certificates(try NIOSSLCertificate.fromPEMBytes(Array(pem.utf8))))
         #expect(configuration.additionalTrustRoots == [])
@@ -97,7 +98,7 @@ struct ContextConfigurationTests {
         let notDER = CertificateSource.der([0x30, 0x00])
         #expect(throws: ClientTrustError.unreadable(notDER)) { try ClientTLSContext(trust: .additionalRoots([notDER])) }
 
-        let good = CertificateSource.pem(try authority.certificatePEM)
+        let good = CertificateSource.pem(authority.certificatePEM)
         #expect(throws: ClientTrustError.unreadable(missing)) {
             try ClientTLSContext(trust: .onlyRoots([good, missing]))
         }
@@ -106,8 +107,8 @@ struct ContextConfigurationTests {
     @Test("A client context reports the SHA-256 of each root it was given")
     func rootFingerprints() throws {
         let leaf = try authority.issueLeaf()
-        let asRoot = try ClientTLSContext(trust: .onlyRoots([.pem(try leaf.certificatePEM)]))
-        #expect(asRoot.rootFingerprints == [try leaf.certificateSHA256])
+        let asRoot = try ClientTLSContext(trust: .onlyRoots([.pem(leaf.certificatePEM)]))
+        #expect(asRoot.rootFingerprints == [leaf.certificateSHA256])
         #expect(try ClientTLSContext(trust: .systemRoots).rootFingerprints == [])
     }
 

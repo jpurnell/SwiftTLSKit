@@ -2,6 +2,7 @@ import Foundation
 import NIOConcurrencyHelpers
 import Testing
 import SwiftTLSKit
+import SwiftTLSKitTestSupport
 
 @Suite("Reloading a server identity without restarting", .timeLimit(.minutes(1)))
 struct ReloadTests {
@@ -9,12 +10,12 @@ struct ReloadTests {
     let fixture: Fixture
 
     init() throws {
-        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority")
+        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority", generator: SeededGenerator(seed: TestSeed.authority))
         fixture = try Fixture()
     }
 
     private func trustingAuthority() throws -> ClientTLSContext {
-        try ClientTLSContext(trust: .onlyRoots([.pem(try authority.certificatePEM)]))
+        try ClientTLSContext(trust: .onlyRoots([.pem(authority.certificatePEM)]))
     }
 
     /// What the library reports for `leaf`, loaded from a directory of its own so that asking
@@ -42,7 +43,7 @@ struct ReloadTests {
 
         let live = try await LoopbackClient.connect(
             port: server.port, context: try trustingAuthority(), serverHostname: "localhost")
-        #expect(live.report.peerCertificateSHA256 == (try first.certificateSHA256))
+        #expect(live.report.peerCertificateSHA256 == first.certificateSHA256)
         #expect(try await live.roundTrip("before") == "before")
 
         _ = try fixture.install(second)
@@ -50,7 +51,7 @@ struct ReloadTests {
 
         #expect(outcome == .reloaded(serving: try summary(of: second), replacing: try summary(of: first)))
         #expect(tls.current.leaf == (try summary(of: second)))
-        #expect(try await served(by: server) == (try second.certificateSHA256))
+        #expect(try await served(by: server) == second.certificateSHA256)
         // The connection opened before the reload is still up, still on the certificate it
         // negotiated, and still carrying data.
         #expect(try await live.roundTrip("after") == "after")
@@ -71,7 +72,7 @@ struct ReloadTests {
         let before = tls.current.sslContext
 
         // The state a renewal passes through: the new chain is in place, the key is not yet.
-        try fixture.write(try second.chainPEM, to: "fullchain.pem", mode: 0o644)
+        try fixture.write(second.chainPEM, to: "fullchain.pem", mode: 0o644)
         let outcome = tls.reload()
 
         #expect(
@@ -80,12 +81,12 @@ struct ReloadTests {
                     certificateChainPath: identity.certificateChainPath, privateKeyPath: identity.privateKeyPath),
                 stillServing: try summary(of: first)))
         #expect(tls.current.sslContext === before)
-        #expect(try await served(by: server) == (try first.certificateSHA256))
+        #expect(try await served(by: server) == first.certificateSHA256)
 
         // ...and once the key arrives, the same reload succeeds.
-        try fixture.write(second.keyPEM, to: "privkey.pem", mode: 0o600)
+        try fixture.write(second.privateKeyPEM, to: "privkey.pem", mode: 0o600)
         #expect(tls.reload() == .reloaded(serving: try summary(of: second), replacing: try summary(of: first)))
-        #expect(try await served(by: server) == (try second.certificateSHA256))
+        #expect(try await served(by: server) == second.certificateSHA256)
         try await server.stop()
     }
 
@@ -177,7 +178,7 @@ struct ReloadTests {
         let original = tls.current.sslContext
         #expect(tls.reloadIfChanged() == .unchanged(serving: try summary(of: first)))
 
-        try fixture.write(first.keyPEM + "\n", to: "privkey.pem", mode: 0o600)
+        try fixture.write(first.privateKeyPEM + "\n", to: "privkey.pem", mode: 0o600)
 
         #expect(tls.reloadIfChanged() == .reloaded(serving: try summary(of: first), replacing: try summary(of: first)))
         #expect(tls.current.sslContext !== original)

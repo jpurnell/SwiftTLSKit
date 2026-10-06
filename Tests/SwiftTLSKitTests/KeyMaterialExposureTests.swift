@@ -2,6 +2,7 @@ import Crypto
 import Foundation
 import Testing
 import SwiftTLSKit
+import SwiftTLSKitTestSupport
 
 /// Change detection keeps a digest of the private key file. These tests are the other half of
 /// that decision: the digest, like the key, is reachable by nothing that prints.
@@ -11,7 +12,7 @@ struct KeyMaterialExposureTests {
     let fixture: Fixture
 
     init() throws {
-        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority")
+        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority", generator: SeededGenerator(seed: TestSeed.authority))
         fixture = try Fixture()
     }
 
@@ -52,9 +53,9 @@ struct KeyMaterialExposureTests {
         let reloader = try ReloadableServerTLS(identity: identity, now: { TestInstant.now })
 
         // Computed here, by swift-crypto, from the bytes the fixture wrote.
-        let keyFile = Array(leaf.keyPEM.utf8)
+        let keyFile = Array(leaf.privateKeyPEM.utf8)
         let digest = Array(SHA256.hash(data: keyFile))
-        let forms = [Self.hex(digest), Self.hex(digest).uppercased(), Data(digest).base64EncodedString(), leaf.keyPEM]
+        let forms = [Self.hex(digest), Self.hex(digest).uppercased(), Data(digest).base64EncodedString(), leaf.privateKeyPEM]
 
         let subjects: [(name: String, value: Any)] = [
             ("LoadedServerIdentity", loaded), ("ServerTLSContext", context),

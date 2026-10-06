@@ -2,24 +2,24 @@ import NIOCore
 import NIOPosix
 import Testing
 import SwiftTLSKit
+import SwiftTLSKitTestSupport
 
 @Suite("Pinned trust", .timeLimit(.minutes(1)))
 struct PinningTests {
     let authority: TestAuthority
-    let fixture: Fixture
 
     init() throws {
-        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority")
-        fixture = try Fixture()
+        authority = try TestAuthority(commonName: "SwiftTLSKit Test Authority", generator: SeededGenerator(seed: TestSeed.authority))
     }
 
+    /// From memory: nothing in this suite is about files, so no key is written to one.
     private func context(serving leaf: TestLeaf) throws -> ServerTLSContext {
-        try ServerTLSContext(identity: try fixture.install(leaf).load(now: TestInstant.now))
+        try leaf.serverContext(now: TestInstant.now)
     }
 
     private func pinned(_ pins: [CertificatePin], trustingAuthority: Bool = true) throws -> ClientTLSContext {
         try ClientTLSContext(
-            trust: .pinned(pins, additionalRoots: trustingAuthority ? [.pem(try authority.certificatePEM)] : []))
+            trust: .pinned(pins, additionalRoots: trustingAuthority ? [.pem(authority.certificatePEM)] : []))
     }
 
     // MARK: - Matching and not matching
@@ -28,12 +28,12 @@ struct PinningTests {
     func certificatePinMatches() async throws {
         let leaf = try authority.issueLeaf()
         let server = try await LoopbackServer.start(serving: try context(serving: leaf))
-        let pin = try CertificatePin.certificate(sha256: try leaf.certificateSHA256)
+        let pin = try CertificatePin.certificate(sha256: leaf.certificateSHA256)
 
         let client = try await LoopbackClient.connect(
             port: server.port, context: try pinned([pin]), serverHostname: "localhost")
 
-        #expect(client.report.peerCertificateSHA256 == (try leaf.certificateSHA256))
+        #expect(client.report.peerCertificateSHA256 == leaf.certificateSHA256)
         #expect(try await client.roundTrip("pinned") == "pinned")
         try await client.close()
         try await server.stop()
@@ -58,14 +58,14 @@ struct PinningTests {
         let served = try authority.issueLeaf()
         let expected = try authority.issueLeaf()
         let server = try await LoopbackServer.start(serving: try context(serving: served))
-        let client = try pinned([try CertificatePin.certificate(sha256: try expected.certificateSHA256)])
+        let client = try pinned([try CertificatePin.certificate(sha256: expected.certificateSHA256)])
 
         let refusal = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: client, serverHostname: "localhost")
         }
         #expect(
             refusal == .pinMismatch(
-                certificateSHA256: try served.certificateSHA256, publicKeySHA256: served.publicKeySHA256))
+                certificateSHA256: served.certificateSHA256, publicKeySHA256: served.publicKeySHA256))
         try await server.stop()
     }
 
@@ -81,7 +81,7 @@ struct PinningTests {
         }
         #expect(
             refusal == .pinMismatch(
-                certificateSHA256: try served.certificateSHA256, publicKeySHA256: served.publicKeySHA256))
+                certificateSHA256: served.certificateSHA256, publicKeySHA256: served.publicKeySHA256))
         try await server.stop()
     }
 
@@ -90,7 +90,7 @@ struct PinningTests {
         let leaf = try authority.issueLeaf()
         let server = try await LoopbackServer.start(serving: try context(serving: leaf))
         let crossed = try pinned([
-            try CertificatePin.publicKey(sha256: try leaf.certificateSHA256),
+            try CertificatePin.publicKey(sha256: leaf.certificateSHA256),
             try CertificatePin.certificate(sha256: leaf.publicKeySHA256),
         ])
 
@@ -99,7 +99,7 @@ struct PinningTests {
         }
         #expect(
             refusal == .pinMismatch(
-                certificateSHA256: try leaf.certificateSHA256, publicKeySHA256: leaf.publicKeySHA256))
+                certificateSHA256: leaf.certificateSHA256, publicKeySHA256: leaf.publicKeySHA256))
         try await server.stop()
     }
 
@@ -116,7 +116,7 @@ struct PinningTests {
         let client = try await LoopbackClient.connect(
             port: server.port, context: try pinned(pins), serverHostname: "localhost")
 
-        #expect(client.report.peerCertificateSHA256 == (try next.certificateSHA256))
+        #expect(client.report.peerCertificateSHA256 == next.certificateSHA256)
         try await client.close()
         try await server.stop()
     }
@@ -124,23 +124,23 @@ struct PinningTests {
     @Test("A public-key pin survives a renewal that keeps the key; a certificate pin does not")
     func renewalWithSameKey() async throws {
         let original = try authority.issueLeaf()
-        let renewed = try authority.issueLeaf(key: original.key)
+        let renewed = try authority.issueLeaf(reusingKeyOf: original)
         let server = try await LoopbackServer.start(serving: try context(serving: renewed))
 
         let byKey = try await LoopbackClient.connect(
             port: server.port,
             context: try pinned([try CertificatePin.publicKey(sha256: original.publicKeySHA256)]),
             serverHostname: "localhost")
-        #expect(byKey.report.peerCertificateSHA256 == (try renewed.certificateSHA256))
+        #expect(byKey.report.peerCertificateSHA256 == renewed.certificateSHA256)
         try await byKey.close()
 
-        let byCertificate = try pinned([try CertificatePin.certificate(sha256: try original.certificateSHA256)])
+        let byCertificate = try pinned([try CertificatePin.certificate(sha256: original.certificateSHA256)])
         let refusal = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: byCertificate, serverHostname: "localhost")
         }
         #expect(
             refusal == .pinMismatch(
-                certificateSHA256: try renewed.certificateSHA256, publicKeySHA256: original.publicKeySHA256))
+                certificateSHA256: renewed.certificateSHA256, publicKeySHA256: original.publicKeySHA256))
         try await server.stop()
     }
 
@@ -151,7 +151,7 @@ struct PinningTests {
         let leaf = try authority.issueLeaf()
         let server = try await LoopbackServer.start(serving: try context(serving: leaf))
         let client = try pinned(
-            [try CertificatePin.certificate(sha256: try leaf.certificateSHA256)], trustingAuthority: false)
+            [try CertificatePin.certificate(sha256: leaf.certificateSHA256)], trustingAuthority: false)
 
         let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: client, serverHostname: "localhost")
@@ -165,7 +165,7 @@ struct PinningTests {
     func pinDoesNotReplaceHostnameVerification() async throws {
         let leaf = try authority.issueLeaf(dnsNames: ["localhost"])
         let server = try await LoopbackServer.start(serving: try context(serving: leaf))
-        let client = try pinned([try CertificatePin.certificate(sha256: try leaf.certificateSHA256)])
+        let client = try pinned([try CertificatePin.certificate(sha256: leaf.certificateSHA256)])
 
         let failure = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port, context: client, serverHostname: "elsewhere.example")
@@ -174,7 +174,7 @@ struct PinningTests {
 
         // The same client, server and pin, with the right name: so it was the name.
         let named = try await LoopbackClient.connect(port: server.port, context: client, serverHostname: "localhost")
-        #expect(named.report.peerCertificateSHA256 == (try leaf.certificateSHA256))
+        #expect(named.report.peerCertificateSHA256 == leaf.certificateSHA256)
         try await named.close()
         try await server.stop()
     }
@@ -188,7 +188,7 @@ struct PinningTests {
         let (server, receivedBytes) = try await LoopbackServer.startCounting(serving: try context(serving: served))
         var received = receivedBytes.makeAsyncIterator()
 
-        let matching = try pinned([try CertificatePin.certificate(sha256: try served.certificateSHA256)])
+        let matching = try pinned([try CertificatePin.certificate(sha256: served.certificateSHA256)])
         let delivered = try await LoopbackClient.connect(port: server.port) { pipeline in
             try matching.addHandlers(to: pipeline, serverHostname: "localhost")
             try pipeline.addHandler(EarlyWriter("credentials"))
@@ -196,7 +196,7 @@ struct PinningTests {
         try await delivered.close()
         #expect(await received.next() == 11)
 
-        let mismatching = try pinned([try CertificatePin.certificate(sha256: try other.certificateSHA256)])
+        let mismatching = try pinned([try CertificatePin.certificate(sha256: other.certificateSHA256)])
         let refusal = await handshakeFailure {
             try await LoopbackClient.connect(port: server.port) { pipeline in
                 try mismatching.addHandlers(to: pipeline, serverHostname: "localhost")
@@ -205,7 +205,7 @@ struct PinningTests {
         }
         #expect(
             refusal == .pinMismatch(
-                certificateSHA256: try served.certificateSHA256, publicKeySHA256: served.publicKeySHA256))
+                certificateSHA256: served.certificateSHA256, publicKeySHA256: served.publicKeySHA256))
         #expect(await received.next() == 0)
         try await server.stop()
     }
@@ -214,7 +214,7 @@ struct PinningTests {
     func earlyWritesAreBounded() async throws {
         let leaf = try authority.issueLeaf()
         let server = try await LoopbackServer.startSilent()
-        let client = try pinned([try CertificatePin.certificate(sha256: try leaf.certificateSHA256)])
+        let client = try pinned([try CertificatePin.certificate(sha256: leaf.certificateSHA256)])
         let channel = try await ClientBootstrap(group: MultiThreadedEventLoopGroup.singleton)
             .channelInitializer { channel in
                 channel.eventLoop.makeCompletedFuture {
@@ -281,15 +281,15 @@ struct PinningTests {
     @Test("A pinned trust makes two handlers: TLS, then the pin check")
     func pinnedHandlers() throws {
         let leaf = try authority.issueLeaf()
-        let client = try pinned([try CertificatePin.certificate(sha256: try leaf.certificateSHA256)])
+        let client = try pinned([try CertificatePin.certificate(sha256: leaf.certificateSHA256)])
         #expect(try client.makeHandlers(serverHostname: "localhost").count == 2)
-        #expect(client.rootFingerprints == [try SHA256Fingerprint.ofPEMCertificate(try authority.certificatePEM)])
+        #expect(client.rootFingerprints == [authority.certificateSHA256])
     }
 
     @Test("A pinned trust refuses to be flattened into a bare TLSConfiguration, which could not enforce it")
     func pinnedConfigurationRefused() throws {
         let leaf = try authority.issueLeaf()
-        let trust = ClientTrust.pinned([try CertificatePin.certificate(sha256: try leaf.certificateSHA256)])
+        let trust = ClientTrust.pinned([try CertificatePin.certificate(sha256: leaf.certificateSHA256)])
         #expect(throws: ClientTrustError.pinsNeedHandlers) { try trust.makeTLSConfiguration() }
     }
 

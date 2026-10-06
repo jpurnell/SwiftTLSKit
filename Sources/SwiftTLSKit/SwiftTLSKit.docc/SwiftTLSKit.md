@@ -31,6 +31,11 @@ Four properties are the point of it:
 
 Start with <doc:ServingTLS> for a server and <doc:ConnectingAsAClient> for a client.
 
+To test against it, the package has a second product, `SwiftTLSKitTestSupport`: a certificate
+authority and server certificates generated when the tests run, and a server context built
+from them in memory, so that a test target needs neither a certificate library of its own nor
+a private key on disk.
+
 ## Topics
 
 ### Articles

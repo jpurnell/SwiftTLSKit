@@ -155,8 +155,8 @@ public final class ReloadableServerTLS: Sendable {
     /// Calls ``reloadIfChanged()`` once for each element of `triggers`, until it ends.
     ///
     /// The mechanism behind both a periodic check and a `SIGHUP` handler: the caller supplies
-    /// the sequence, and this supplies the loop. It returns when the sequence finishes, and
-    /// stops early if the task is cancelled.
+    /// the sequence, and this supplies the loop. It returns when the sequence finishes — which,
+    /// for an `AsyncStream`, includes the surrounding task being cancelled.
     ///
     /// - Parameters:
     ///   - triggers: When to check. The elements themselves are ignored.

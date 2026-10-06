@@ -57,3 +57,35 @@ Run `quality-gate` before every commit. All checks must pass.
 - Coding rules: `development-guidelines/rules/coding_rules.md`
 - TDD contract: `development-guidelines/rules/test_driven_development.md`
 - Session workflow: `development-guidelines/rules/session_workflow.md`
+
+---
+
+# SwiftTLSKit — TLS configuration for SwiftNIO, written once
+
+## What this package is
+
+Configuration only: values and NIO channel handlers. No sockets, no event loops, no listener
+framework. `Sources/SwiftTLSKit/SwiftTLSKit.docc/DesignNotes.md` records every decision and
+every place the code forced a deviation; read it before changing the API.
+
+## Rules specific to this package
+
+- **Half an identity is an error, never plaintext.** Nothing may turn "one of two paths" into
+  "no TLS".
+- **No case, flag or parameter that disables certificate or hostname verification.**
+  `certificateVerification` is never written.
+- **Nothing read from a key file goes into an error, a description or a log.** The package has
+  no logger; keep it that way.
+- **Nothing reads the clock.** The current time is a parameter.
+- **No `withUnsafe*` blocks.** The gate's pointer-escape auditor flags them here even when the
+  result is copied; use typed values and implicit `&` instead (see `IPAddressLiteral`).
+- **No private keys in the repository.** Tests generate certificates and keys when they run
+  (`Tests/SwiftTLSKitTests/Support/TestCertificates.swift`).
+- **No dependency on any other package of the owner's.**
+
+## Tests
+
+Real TLS handshakes over loopback on a kernel-chosen port. Test certificates are dated from
+1 January 2019 on purpose: Security.framework refuses a server certificate issued after
+1 July 2019 with more than 825 days of validity, and it verifies whenever the system root
+store is consulted.

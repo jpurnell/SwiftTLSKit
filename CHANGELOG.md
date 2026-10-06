@@ -4,6 +4,11 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-06
+
+First release. TLS configuration that was duplicated across SwiftMCPServer, VaultMCP's web
+view and SwiftMCPClient, written once. Nothing has adopted it yet.
+
 ### Added
 - `ReloadableServerTLS`, which owns the current `ServerTLSContext` and replaces it from disk
   without a restart. `reload()` validates completely before swapping; a failed reload keeps
@@ -39,5 +44,16 @@ All notable changes to SwiftTLSKit will be documented in this file.
 - `BindExposure`, a pure classification of a bind host and whether TLS is configured:
   `tls`, `loopbackPlaintext`, or `exposedPlaintext(host:)`. It decides nothing; whether
   exposed plaintext is a warning or a refusal belongs to the server that asked.
+- Platforms: macOS 14 and iOS 17. Built for macOS arm64 and x86_64 and for generic iOS; tested
+  on macOS arm64. Linux is not declared and has not been built.
 
-[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/commits/main
+### Notes
+- Dependencies: swift-nio 2.102.0+, swift-nio-ssl 2.37.4+, swift-crypto 3+ (SHA-256 for pins
+  and fingerprints). swift-certificates and swift-asn1 are test-only.
+- The private-key permission rule (no access for group or others) matches what
+  `roseclub-ops/bin/renew-certs.sh` installs: `install -m 0600`. A key copied there by the
+  script it replaced, with `cp`, is `0644` and will be refused until the next renewal
+  rewrites it or it is `chmod 600`ed.
+
+[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/0.1.0...HEAD
+[0.1.0]: https://github.com/jpurnell/SwiftTLSKit/releases/tag/0.1.0

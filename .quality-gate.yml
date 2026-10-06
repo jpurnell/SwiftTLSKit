@@ -1,0 +1,32 @@
+# `enabledCheckers`, not `checkers`: the gate ignores keys it does not recognise, so the
+# superseded name describes a selection that never runs.
+#
+# Nothing is excluded. The scaffolder wrote `excludedCheckers: [disk-clean]`; that checker has
+# moved to `quality-gate clean`, the gate says so on every run, and an exclusion that excludes
+# nothing is noise in the one file that is supposed to say what was skipped.
+enabledCheckers:
+  - all
+  - logging
+
+docTarget: SwiftTLSKit
+
+# Without this the status auditor looks for a master plan inside the framework's own
+# directory, finds none, and skips. A checker that skips is not a checker that passed.
+status:
+  guidelinesPath: "."
+  masterPlanPath: project/master_plan.md
+
+# Relative, as SwiftIdentity's is: an absolute path encodes one machine's home directory. It
+# resolves to the corpus checkout beside this one.
+consistency:
+  corpusPath: ../org-judgement-corpus
+  projectID: SwiftTLSKit
+  consistencyThreshold: 0.7
+  defaultRiskTier: 2
+
+ijs:
+  projectID: "SwiftTLSKit"
+  corpusPath: "../org-judgement-corpus"
+  decisionOwner: "jpurnell"
+  defaultRiskTier: 2
+  remoteURL: "git@github.com:jpurnell/org-judgement-corpus.git"

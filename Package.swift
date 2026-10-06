@@ -28,7 +28,12 @@ let package = Package(
         // compares against `openssl`. NIOSSL exposes no digest, and a hand-written one is not
         // something a TLS package should contain. On Apple platforms this is CryptoKit
         // re-exported; every planned adopter already resolves it.
-        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+        //
+        // A range across two majors, not `from: "3.0.0"`. That floor's implied ceiling excluded
+        // 4.x and pulled a consumer already on 4.5.0 back down to 3.15.1. Nothing used here —
+        // `SHA256.hash(data:)` and, in the test-support product, P-256 keys — differs between
+        // the two, and both ends of the range are built: see CHANGELOG.
+        .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
         // TEST ONLY. Certificates and keys are generated when the tests run, so no private key
         // is ever checked in. Absent from the library target on purpose.
         .package(url: "https://github.com/apple/swift-certificates.git", from: "1.5.0"),

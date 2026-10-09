@@ -4,7 +4,9 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
-Intended as 0.2.1: a correction to what the documentation says, and one addition to the
+## [0.2.1] - 2026-10-09
+
+A correction to what the documentation says, and one addition to the
 test-support product. Nothing a caller of `SwiftTLSKit` writes changes, and no behaviour
 changes.
 
@@ -274,6 +276,7 @@ view and SwiftMCPClient, written once. Nothing has adopted it yet.
   script it replaced, with `cp`, is `0644` and will be refused until the next renewal
   rewrites it or it is `chmod 600`ed.
 
-[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.1...HEAD
+[0.2.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/jpurnell/SwiftTLSKit/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/jpurnell/SwiftTLSKit/releases/tag/0.1.0

@@ -14,7 +14,7 @@ import X509
 /// import SwiftTLSKit
 /// import SwiftTLSKitTestSupport
 ///
-/// let authority = try TestAuthority(commonName: "Test Authority", generator: SystemRandomNumberGenerator())
+/// let authority = try TestAuthority(commonName: "Test Authority", generator: SeededGenerator(seed: 1))
 /// let leaf = try authority.issueLeaf(dnsNames: ["localhost"])
 /// let server = try leaf.serverContext(now: TestInstant.now)
 /// let client = try authority.clientContext()
@@ -28,7 +28,8 @@ import X509
 /// ``init(commonName:notValidBefore:notValidAfter:generator:)``; this module never uses the
 /// system's on its own account. Which generator is the test's decision:
 ///
-/// - A **seeded** generator gives the same keys on every run, so a failure can be reproduced
+/// - A **seeded** generator — ``SeededGenerator`` is one, so a test target need not write its
+///   own — gives the same keys on every run, so a failure can be reproduced
 ///   exactly. Treat those keys as published — a key that can be derived from a seed in a
 ///   repository is a key in that repository. That is acceptable for a test authority because
 ///   nothing trusts it except a client a test builds to trust it.

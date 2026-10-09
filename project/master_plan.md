@@ -46,7 +46,9 @@ written, tested and corrected in one place.
   test-only until the test-support product; the library target still must not import them.
   This package's own tests add `NIOPosix`.
 - **No dependency on any other package of the owner's, and no logging dependency.** The first
-  is why the suite carries its own seeded generator rather than using SwiftDeterminism.
+  is why the test-support product ships its own seeded generator (`SeededGenerator`) rather
+  than using SwiftDeterminism. (Until 2026-10-09 this read "the suite carries its own": the
+  generator was a file in the test target, and each adopter had copied it.)
 
 ### Module Structure
 
@@ -77,6 +79,7 @@ Sources/SwiftTLSKitTestSupport/
 ├── TestLeaf.swift                  a leaf, its PEM and digests, serverContext(options:now:)
 ├── TestInstant.swift               the fixed dates, and why they are those dates
 ├── TestKeyMaterial.swift           the injected generator; TestCertificateError
+├── SeededGenerator.swift           SplitMix64 for a test to seed; not for secrets
 └── InMemoryServerIdentity.swift    a renewable identity and a reloader, with no files
 ```
 
@@ -102,6 +105,7 @@ Sources/SwiftTLSKitTestSupport/
 | `isLoopback(host:)` | The one definition of loopback, for a bind host or a dial host |
 | `TestAuthority`, `TestLeaf`, `TestInstant` (test support) | Certificates generated when tests run, from an injected generator, dated before Apple's 825-day rule |
 | `InMemoryServerIdentity` (test support) | A server context and a renewable reloader built from memory |
+| `SeededGenerator` (test support) | SplitMix64 from a seed, for `TestAuthority`'s `generator:`; predictable by design, never for a secret |
 
 ### Data Flow
 
@@ -164,6 +168,7 @@ Tests (a consumer's, and this package's)
 14. **In-memory identities are for tests.** The entry points are `package`, reached through
     `SwiftTLSKitTestSupport`; a server's key is on disk and the permission check is the point.
 15. **The package has no randomness of its own.** Test support takes the caller's generator.
+    It ships one a caller may construct, `SeededGenerator`, and constructs none itself.
 16. **BoringSSL's errors are read by code, from an error that is structurally one** — not by
     searching an error's text for a reason name.
 
@@ -197,6 +202,10 @@ The reasoning for each, and where the code forced a deviation from the first des
   - [x] `SwiftTLSKitTestSupport`
   - [x] tvOS 17, visionOS 1
   - [x] `ReloadOutcome.suggestedLogLevel`
+- [x] After 0.2.0, on `fix/loopback-reason-and-seeded-generator` — unreleased, intended 0.2.1:
+  - [x] The stated reason for refusing a leading-zero octet corrected (`inet_aton` is the
+    octal reader, not `getaddrinfo`); the rule itself pinned by a test that names no resolver
+  - [x] `SeededGenerator` in `SwiftTLSKitTestSupport`
 
 ### What's Next
 - [ ] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — two
@@ -299,6 +308,15 @@ said otherwise, and two said otherwise the same day. Recorded as they reported i
 - [x] ~~An adopter had to decide a failed reload's log level for itself~~
 - [x] ~~README said the package resolves over SSH; it resolves over HTTPS too~~
 
+### Phase 4: What the adopters found next — done on a branch, unreleased (intended 0.2.1)
+- [x] ~~The documentation said `getaddrinfo` reads `0127.0.0.1` as octal~~ — an adopter
+  measured it; it is `inet_aton`. The plan's own Phase 3 line above ("writing the table found
+  the definition too loose") was right about the definition and silent about the reason,
+  which is where the error was.
+- [x] ~~Three test targets each carried a copy of SplitMix64~~ — shipped as `SeededGenerator`.
+  This reverses a decision recorded at 0.2.0 ("a consumer brings its own generator"). It was
+  made before anyone had brought one; all three brought the same one.
+
 ### Future
 - A peer-certificate fingerprint after a client handshake, without naming
   `NIOSSLClientHandler`: both this suite and IconquerServer's test client read
@@ -310,7 +328,12 @@ said otherwise, and two said otherwise the same day. Recorded as they reported i
 
 ---
 
-**Last Updated:** 2026-10-06, 0.2.0 tagged (CHANGELOG section, link references and README install line moved to 0.2.0); earlier the same day (adopter feedback: module structure, type
+**Last Updated:** 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
+type table, decision 15, Current Status and Roadmap (new Phase 4) reconciled against
+`fix/loopback-reason-and-seeded-generator`, which adds `SeededGenerator` to the test-support
+product and corrects the stated reason for the leading-zero rule. The "Tested on macOS arm64"
+and Known limits lines were not re-audited. Previous entry:
+2026-10-06, 0.2.0 tagged (CHANGELOG section, link references and README install line moved to 0.2.0); earlier the same day (adopter feedback: module structure, type
 table, data flow and decisions 10–16 rewritten against the code on `feat/adopter-feedback`;
 "nothing has adopted it" corrected to two adopters; Phase 2's first two items marked started,
 not finished; Phase 3 added and struck through as done but unreleased; the claim in

@@ -26,10 +26,14 @@
 ///   resolves to this machine today; that is a fact about a resolver's configuration, and it
 ///   can change without this code being told. `localhost.` with a trailing dot is such a name.
 /// - **The wildcard is not loopback.** `0.0.0.0` and `::` bind every interface.
-/// - **A spelling two parsers read differently is not loopback.** `0127.0.0.1` is 127.0.0.1 to
-///   `inet_pton` on some platforms and 87.0.0.1 to `getaddrinfo`, which reads a leading zero as
-///   octal. An octet with a leading zero, a shortened address such as `127.1`, and a zone
-///   identifier such as `::1%lo0` are all refused.
+/// - **A spelling two parsers read differently is not loopback.** An octet with a leading
+///   zero is decimal to one parser and octal to another, so the same text is two addresses:
+///   measured on macOS 27.0.1, `0127.0.0.1` is 127.0.0.1 to `inet_pton` and to `getaddrinfo`
+///   and 87.0.0.1 to `inet_aton`, while `0177.0.0.1` is 127.0.0.1 to `inet_aton` and
+///   177.0.0.1 to the other two. Which function reads it which way is a fact about a platform
+///   and can differ on another; that they disagree is the reason for the rule. An octet with
+///   a leading zero, a shortened address such as `127.1`, and a zone identifier such as
+///   `::1%lo0` are all refused.
 /// - **The text must be a host.** No port, no surrounding space, and square brackets only
 ///   around an IPv6 literal.
 ///

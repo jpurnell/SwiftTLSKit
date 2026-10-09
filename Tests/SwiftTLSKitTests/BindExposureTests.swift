@@ -22,7 +22,7 @@ struct BindExposureTests {
             "0.0.0.0", "::", "10.0.1.114", "128.0.0.1", "::2", "roseclub.org", "", "127.0.0.1.example.com",
             "localhost.example.com", "127.0.0", "1270.0.0.1", "::ffff:10.0.0.1",
             // Spellings another parser reads differently, or that are not a host at all. An octet
-            // with a leading zero is octal to `getaddrinfo`: "0127.0.0.1" is 87.0.0.1 there.
+            // with a leading zero is octal to `inet_aton` and decimal to `inet_pton`.
             "0127.0.0.1", "127.0.0.01", "::ffff:0127.0.0.1", "[127.0.0.1]", "[localhost]", "::1%lo0",
         ])
     func exposedPlaintext(host: String) {

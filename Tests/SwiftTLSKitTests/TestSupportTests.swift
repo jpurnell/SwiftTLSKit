@@ -73,13 +73,13 @@ struct TestSupportTests {
         try TestAuthority(commonName: "Support Test Authority", generator: SeededGenerator(seed: TestSeed.authority))
     }
 
-    // MARK: - The suite's own generator
+    // MARK: - The shipped generator
 
     /// The first five outputs for the seed 1234567, from the reference implementation's
     /// published test values (the same five the Rosetta Code SplitMix64 task lists).
-    @Test("The suite's seeded generator is SplitMix64")
+    @Test("The shipped seeded generator is SplitMix64")
     func seededGeneratorIsSplitMix64() {
-        var generator = SeededGenerator(seed: 1_234_567)
+        var generator = SwiftTLSKitTestSupport.SeededGenerator(seed: 1_234_567)
         let outputs = (0..<5).map { _ in generator.next() }
 
         #expect(
@@ -87,6 +87,32 @@ struct TestSupportTests {
                 6_457_827_717_110_365_317, 3_203_168_211_198_807_973, 9_817_491_932_198_370_423,
                 4_593_380_528_125_082_431, 16_408_922_859_458_223_821,
             ])
+    }
+
+    /// The seed zero is the stream xoshiro's authors publish for seeding their generators; its
+    /// first values are the most widely reproduced SplitMix64 outputs there are. Re-derived
+    /// with integer arithmetic outside this package.
+    @Test("Seed zero gives the published stream, so zero is a seed like any other")
+    func seededGeneratorFromZero() {
+        var generator = SwiftTLSKitTestSupport.SeededGenerator(seed: 0)
+        let outputs = (0..<5).map { _ in generator.next() }
+
+        #expect(
+            outputs == [
+                0xE220_A839_7B1D_CDAF, 0x6E78_9E6A_A1B9_65F4, 0x06C4_5D18_8009_454F,
+                0xF88B_B8A8_724C_81EC, 0x1B39_896A_51A8_749B,
+            ])
+    }
+
+    @Test("A copy continues from where the original was, and neither moves the other")
+    func seededGeneratorIsAValue() {
+        var original = SwiftTLSKitTestSupport.SeededGenerator(seed: 1_234_567)
+        #expect(original.next() == 6_457_827_717_110_365_317)
+
+        var copy = original
+        #expect(copy.next() == 3_203_168_211_198_807_973)
+        #expect(copy.next() == 9_817_491_932_198_370_423)
+        #expect(original.next() == 3_203_168_211_198_807_973)
     }
 
     @Test("Authorities from different seeds have different keys, and the same seed the same key")

@@ -81,14 +81,17 @@ every place the code forced a deviation; read it before changing the API.
   result is copied; use typed values and implicit `&` instead (see `IPAddressLiteral`).
 - **No private key files in the repository.** Tests generate certificates and keys when they
   run, with the `SwiftTLSKitTestSupport` product (`Sources/SwiftTLSKitTestSupport/`). The
-  generator is injected and, in this suite, seeded
-  (`Tests/SwiftTLSKitTests/Support/SeededGenerator.swift`), because the gate refuses unseeded
-  randomness in tests. So the test keys are reproducible from the seed and are to be treated
+  generator is injected and, in this suite, seeded (`SeededGenerator`, which the product
+  ships; the seeds are in `Tests/SwiftTLSKitTests/Support/TestSeed.swift`), because the gate
+  refuses unseeded randomness in tests. So the test keys are reproducible from the seed and are to be treated
   as public; nothing trusts a test authority except a client a test builds to trust it.
 - **swift-certificates belongs to `SwiftTLSKitTestSupport` only.** The `SwiftTLSKit` target
   must not import X509 or SwiftASN1.
 - **No randomness of the package's own.** `SwiftTLSKitTestSupport` takes the caller's
-  generator; nothing in `Sources/` constructs `SystemRandomNumberGenerator`.
+  generator; nothing in `Sources/` constructs `SystemRandomNumberGenerator`, and nothing in
+  `Sources/` constructs a `SeededGenerator` either — it is shipped for a test to construct.
+- **`SeededGenerator` stays in `SwiftTLSKitTestSupport`.** It is predictable by design. The
+  `SwiftTLSKit` target must never see it.
 - **No dependency on any other package of the owner's.**
 
 ## Tests

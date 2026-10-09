@@ -200,7 +200,7 @@ without a certificate dependency of its own and without writing a private key to
 import SwiftTLSKit
 import SwiftTLSKitTestSupport
 
-let authority = try TestAuthority(commonName: "Test Authority", generator: generator)
+let authority = try TestAuthority(commonName: "Test Authority", generator: SeededGenerator(seed: 1))
 let leaf = try authority.issueLeaf(dnsNames: ["localhost"])
 
 let server = try leaf.serverContext(now: TestInstant.now)       // built in memory

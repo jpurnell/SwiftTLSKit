@@ -4,6 +4,64 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+Intended as 0.2.1: a correction to what the documentation says, and one addition to the
+test-support product. Nothing a caller of `SwiftTLSKit` writes changes, and no behaviour
+changes.
+
+Why a patch and not 0.3.0. Before 1.0 this package signals a source break with the minor
+version (0.2.0 said so and did it), and the README tells consumers to depend on it with
+`.upToNextMinor(from:)` for that reason. Both adopters do. An addition that breaks nothing
+therefore belongs in the patch: 0.2.1 reaches them with no manifest change, where 0.3.0 would
+make each of them edit a requirement to receive thirty lines they already have. A test target
+that declares its own `SeededGenerator` keeps compiling — a module's own declaration takes
+precedence over an imported one — so the addition cannot break an adopter that has not yet
+deleted its copy. One that deletes its copy should raise its floor to 0.2.1.
+
+### Fixed — documentation
+- **The reason given for refusing a leading-zero octet was wrong.** The `isLoopback(host:)`
+  documentation, the design notes and the 0.2.0 entry below said `0127.0.0.1` is 87.0.0.1 to
+  `getaddrinfo`. It is not. Measured on macOS 27.0.1 (arm64) by an adopter, and again here:
+
+  | Text | `getaddrinfo` | `inet_pton` | `inet_aton` |
+  | --- | --- | --- | --- |
+  | `0127.0.0.1` | 127.0.0.1 | 127.0.0.1 | 87.0.0.1 |
+  | `0177.0.0.1` | 177.0.0.1 | 177.0.0.1 | 127.0.0.1 |
+
+  The parser that reads a leading zero as octal is `inet_aton`. The rule is right and is
+  unchanged — the same text is two different addresses depending on who parses it, and a
+  caller cannot know who will — but it was justified by naming the wrong function. Corrected
+  in the doc comment, in `DesignNotes`, in two test comments, and by a dated note in the
+  0.2.0 entry and in that session's summary, whose original sentences are left standing.
+
+### Added
+- **`SeededGenerator`, in `SwiftTLSKitTestSupport` only**: SplitMix64, `init(seed:)`,
+  `next()`. `TestAuthority` requires a `generator:`, the product shipped none, and the quality
+  gate refuses `SystemRandomNumberGenerator` in tests — so IconquerServer, IconquerClient and
+  this package's own suite each carried the same thirty lines. Its documentation says that
+  nothing it produces is secret: the output is a function of a seed that sits in a test file.
+  It is checked against the reference implementation's published values for two seeds.
+  The package still has no randomness of its own: the caller constructs the generator and
+  chooses the seed.
+
+### Tests
+- An octet with a leading zero is refused by `isLoopback(host:)` in every position, in a
+  mapped address and in brackets — eighteen spellings — and an octet that is exactly `0` is
+  not a leading zero. Those tests state the package's rule and assert nothing about any
+  resolver. They pinned existing behaviour and passed when written; removing the check from
+  `isLoopback` fails them.
+- This suite's own copy of the generator is deleted; it uses the shipped one.
+
+### What an adopter can delete
+- **IconquerServer**: the `SeededGenerator` struct in
+  `Tests/IconquerServerTests/TLSTestSupport.swift` (its `TestSeed` and the rest of the file
+  stay).
+- **IconquerClient**: the `SeededGenerator` struct in
+  `Tests/IconquerClientTests/Support/SeededGenerator.swift` (its `TestSeed` stays, so the file
+  wants renaming rather than deleting).
+
+  The sequence is the same algorithm with the same constants, so the same seeds give the same
+  keys as before.
+
 ## [0.2.0] - 2026-10-06
 
 Not 0.1.1: one change breaks source (`resolve`, below), and before 1.0 the minor version is
@@ -43,6 +101,11 @@ end say what each can now delete.
   `getaddrinfo`, which reads it as octal), square brackets around anything but an IPv6 literal
   (`[127.0.0.1]`, `[localhost]`), and a zone identifier (`::1%lo0`). All three now classify as
   exposed, which is the answer that makes a server warn or refuse.
+
+  > **Correction, 2026-10-09.** The parenthesis above names the wrong function, and is left
+  > as released. `getaddrinfo` reads `0127.0.0.1` as 127.0.0.1, as `inet_pton` does; it is
+  > `inet_aton` that reads it as octal, 87.0.0.1 (macOS 27.0.1). The change itself was right,
+  > because the parsers disagree. See the entry above this release.
 - `ReloadableServerTLS.init(identity:options:now:)` is a convenience initializer. Nothing a
   caller writes changes.
 

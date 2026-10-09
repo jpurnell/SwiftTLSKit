@@ -38,6 +38,10 @@ Full reasoning: "What the first adopters changed" in
 - **Decision:** `isLoopback(host:)` is a free function, and stricter than 0.1.0's private one.
   **Rationale:** the table test found `0127.0.0.1` (octal to `getaddrinfo`), `[localhost]`,
   `[127.0.0.1]` and `::1%lo0` all counted as loopback.
+  *Correction, 2026-10-09:* "octal to `getaddrinfo`" is wrong. Measured on macOS 27.0.1,
+  `getaddrinfo` and `inet_pton` read `0127.0.0.1` as 127.0.0.1; `inet_aton` reads it as
+  87.0.0.1. The decision stands — the parsers disagree — and the sentence above is left as
+  it was written.
 - **Decision:** `ClientHandshakeFailure` reads BoringSSL's packed error code, numerically,
   from an error that is structurally a BoringSSL one. **Alternative rejected:** searching
   `String(describing:)` for `CERTIFICATE_VERIFY_FAILED`, which is what both adopters did.

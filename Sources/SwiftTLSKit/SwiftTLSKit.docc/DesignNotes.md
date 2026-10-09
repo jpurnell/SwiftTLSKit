@@ -93,8 +93,24 @@ default would let the next snippet make the same mistake silently.
 Both adopters asked ``BindExposure`` whether a host was loopback, one of them about a host it
 dials. ``isLoopback(host:)`` is that question on its own. Writing its table found three ways
 the definition was too generous, each resolved towards "not loopback": an octet with a
-leading zero, which `inet_pton` reads as decimal on Darwin and `getaddrinfo` reads as octal;
-brackets around something that is not an IPv6 literal; and a zone identifier.
+leading zero, which `inet_pton` reads as decimal and `inet_aton` reads as octal; brackets
+around something that is not an IPv6 literal; and a zone identifier.
+
+The reason first given for the leading zero was wrong, and 0.2.0 shipped saying it. It said
+`getaddrinfo` reads `0127.0.0.1` as octal, 87.0.0.1. An adopter measured it, and so did we,
+on macOS 27.0.1:
+
+| Text | `getaddrinfo` | `inet_pton` | `inet_aton` |
+| --- | --- | --- | --- |
+| `0127.0.0.1` | 127.0.0.1 | 127.0.0.1 | 87.0.0.1 |
+| `0177.0.0.1` | 177.0.0.1 | 177.0.0.1 | 127.0.0.1 |
+
+The octal reader is `inet_aton`. The rule stands, and for a better reason than the one it was
+given: it never depended on which parser was the odd one, only on there being one. A caller
+cannot know which of them the code between it and the socket will use, so a spelling they
+read differently is refused. The suite pins the rule — an octet with a leading zero is not
+loopback, in any position — and asserts nothing about any resolver, because that table is a
+measurement of one platform and not a property of this package.
 
 ### Handshake failures are classified here, once
 
@@ -121,7 +137,16 @@ server context comes only from a loaded identity, with its permission check, sti
 everything a server can call.
 
 The test-support product has no randomness of its own. Every key and serial number comes from
-a generator the caller passes in, and it does not ship one.
+a generator the caller passes in.
+
+It did not ship a generator at first, on the reasoning that a consumer brings its own. Three
+consumers — both adopters, and this package's own suite — then each wrote the same thirty
+lines of SplitMix64, because the quality gate refuses `SystemRandomNumberGenerator` in tests
+and a seeded generator is therefore not optional for them. `SeededGenerator` is those thirty
+lines, once, in `SwiftTLSKitTestSupport`. The rule above is unchanged: the caller still
+constructs the generator and chooses the seed, and nothing in the package draws from one the
+caller did not pass. It is in the test-support product only, and its documentation says in
+as many words that nothing it produces is secret.
 
 ## Where the code forced a deviation
 

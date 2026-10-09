@@ -45,7 +45,8 @@ struct LoopbackTests {
     @Test(
         "A spelling another parser reads differently is not loopback",
         arguments: [
-            // Octal to getaddrinfo and inet_aton: 0127 is 87.
+            // A leading zero is octal to inet_aton and decimal to inet_pton, so the two give
+            // different addresses for the same text. See `leadingZeroOctets` below.
             "0127.0.0.1", "127.0.0.01", "::ffff:0127.0.0.1",
             // Shorthand and other radices that inet_aton accepts and inet_pton does not.
             "127.1", "127.0.0", "0x7f.0.0.1", "2130706433", "1270.0.0.1",
@@ -54,6 +55,36 @@ struct LoopbackTests {
         ])
     func ambiguousSpellings(host: String) {
         #expect(isLoopback(host: host) == false)
+    }
+
+    /// What the package relies on, stated about the text and nothing else: an octet written
+    /// with a leading zero is refused wherever it stands, whatever number any parser would
+    /// make of it. No resolver is consulted here and none is described — which parser reads
+    /// such an octet as octal differs by function and by platform, and that disagreement is
+    /// the reason for the rule, not something this suite can hold still.
+    ///
+    /// `0177` is in the table because it is the spelling that is 127 in octal; `0127` because
+    /// it is 127 in decimal. Both are refused, and for the same reason.
+    @Test(
+        "An octet with a leading zero is refused in every position, bracketed or mapped or not",
+        arguments: [
+            "0127.0.0.1", "0177.0.0.1", "00127.0.0.1", "0000127.0.0.1",
+            "127.00.0.1", "127.01.0.1", "127.0.00.1", "127.0.01.1", "127.0.0.01", "127.0.0.00", "127.0.0.001",
+            "0127.00.00.01",
+            "::ffff:0127.0.0.1", "::ffff:0177.0.0.1", "::ffff:127.0.0.01", "::ffff:127.00.0.1",
+            "[::ffff:0127.0.0.1]", "[::ffff:127.0.0.01]",
+        ])
+    func leadingZeroOctets(host: String) {
+        #expect(isLoopback(host: host) == false)
+    }
+
+    /// The other half of the same rule: a zero octet is written `0`, and that is not a
+    /// leading zero.
+    @Test(
+        "An octet that is exactly zero is not a leading zero",
+        arguments: ["127.0.0.0", "127.0.0.1", "127.0.10.0", "127.10.0.100", "::ffff:127.0.0.0", "[::ffff:127.0.0.1]"])
+    func zeroOctets(host: String) {
+        #expect(isLoopback(host: host) == true)
     }
 
     @Test(

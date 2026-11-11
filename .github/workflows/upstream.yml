@@ -1,0 +1,27 @@
+# The newest versions every dependency allows, not the ones Package.resolved pins.
+#
+# CI proves the package against the pinned set. This proves it against what an adopter resolving today would get, which
+# is where a break arrives first: above all NIOSSL's `_subjectAlternativeNames()`, an underscored API this package
+# reads certificate names with (DesignNotes, "Subject names come from an underscored NIOSSL API"). Weekly and on demand;
+# it never blocks a pull request, because a red result here is news about upstream, not about the change under review.
+
+name: Upstream
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  newest-dependencies:
+    name: Newest dependencies (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift package update
+      - run: swift package show-dependencies
+      - run: swift build --build-tests
+      - run: swift test

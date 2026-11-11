@@ -1,0 +1,67 @@
+# Continuous integration: build and test on Linux (a Swift 6.2 container) and on macOS.
+#
+# Every dependency is public, so no deploy key is needed: the job's own token checks this repository out.
+#
+# Linux: the package declares Apple platforms only for their minimum versions; nothing in it is Apple-only, and until
+# this workflow existed it had never been built or tested on Linux.
+#
+# macOS: the manifest says swift-tools-version 6.2, which needs Xcode 26. "macos-latest" may still carry an older
+# default Xcode, so the job selects the newest Xcode installed on the image and prints the compiler it got.
+#
+# quality-gate is not installed on the runners (it is the owner's tool, and the git hooks run it): CI builds and tests.
+# Newest dependencies are tried by upstream.yml, on a schedule, so that a break in NIOSSL's underscored
+# subject-alternative-names API (see DesignNotes) is found by this package and not by an adopter.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux (swift:6.2)
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: linux-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: linux-
+      - run: swift --version
+      - run: swift package resolve
+      - run: swift build --build-tests
+      - name: swift test
+        run: |
+          ulimit -n
+          swift test; status=$?
+          echo "swift test exited with $status"
+          exit $status
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Newest Xcode on the image (the manifest needs Swift 6.2)
+        run: |
+          newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          swift --version
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: macos-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: macos-
+      - run: swift package resolve
+      - run: swift build --build-tests
+      - run: swift test

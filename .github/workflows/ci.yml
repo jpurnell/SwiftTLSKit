@@ -1,16 +1,16 @@
-# Continuous integration: build and test on Linux (a Swift 6.2 container) and on macOS.
+# Continuous integration: build and test on Linux (x86_64 and arm64, two toolchains), on macOS, and build
+# for the Apple device platforms the manifest declares.
 #
-# Every dependency is public, so no deploy key is needed: the job's own token checks this repository out.
+# Every dependency of this package is public, so no deploy key or token is needed. (SwiftHTTPService needs one
+# only because it depends on this private repository.)
 #
-# Linux: the package declares Apple platforms only for their minimum versions; nothing in it is Apple-only, and until
-# this workflow existed it had never been built or tested on Linux.
+# quality-gate is not installed on the runners: it is the owner's tool, and the git hooks run it. CI builds and
+# tests; it does not replace the gate.
 #
-# macOS: the manifest says swift-tools-version 6.2, which needs Xcode 26. "macos-latest" may still carry an older
-# default Xcode, so the job selects the newest Xcode installed on the image and prints the compiler it got.
-#
-# quality-gate is not installed on the runners (it is the owner's tool, and the git hooks run it): CI builds and tests.
-# Newest dependencies are tried by upstream.yml, on a schedule, so that a break in NIOSSL's underscored
-# subject-alternative-names API (see DesignNotes) is found by this package and not by an adopter.
+# NOT YET RUN. The first run on GitHub is the first evidence Linux gets. A red Linux job is the expected outcome of
+# a first run, and is fixed with a test, never by skipping the job. The arm64 Linux runner is free only for public
+# repositories; if this private repository cannot use it, that job will not start, and it is replaced with a QEMU
+# emulated job rather than dropped.
 
 name: CI
 
@@ -25,26 +25,32 @@ concurrency:
 
 jobs:
   linux:
-    name: Linux (swift:6.2)
-    runs-on: ubuntu-latest
-    container: swift:6.2
+    name: Linux ${{ matrix.arch }} (${{ matrix.image }})
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # swift:6.2 is the manifest's tools-version, the oldest toolchain that must work;
+        # swift:latest is the newest stable, which finds what the next release will break.
+        include:
+          - { arch: x86_64, runner: ubuntu-latest, image: "swift:6.2" }
+          - { arch: x86_64, runner: ubuntu-latest, image: "swift:latest" }
+          - { arch: arm64, runner: ubuntu-24.04-arm, image: "swift:6.2" }
+          - { arch: arm64, runner: ubuntu-24.04-arm, image: "swift:latest" }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
         with:
           path: .build
-          key: linux-${{ hashFiles('Package.resolved', 'Package.swift') }}
-          restore-keys: linux-
+          key: linux-${{ matrix.arch }}-${{ matrix.image }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: linux-${{ matrix.arch }}-${{ matrix.image }}-
       - run: swift --version
+      - run: uname -m
       - run: swift package resolve
       - run: swift build --build-tests
-      - name: swift test
-        run: |
-          ulimit -n
-          swift test; status=$?
-          echo "swift test exited with $status"
-          exit $status
+      - run: swift test
 
   macos:
     name: macOS
@@ -65,3 +71,25 @@ jobs:
       - run: swift package resolve
       - run: swift build --build-tests
       - run: swift test
+
+  apple-devices:
+    name: Build for ${{ matrix.name }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: iOS, destination: "generic/platform=iOS" }
+          - { name: tvOS, destination: "generic/platform=tvOS" }
+          - { name: visionOS, destination: "generic/platform=visionOS" }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Newest Xcode on the image
+        run: |
+          newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          xcodebuild -version
+      # Built, not run: there is no device. Both products, since the manifest declares both platforms for both.
+      - run: xcodebuild build -scheme SwiftTLSKit -destination "${{ matrix.destination }}"
+      - run: xcodebuild build -scheme SwiftTLSKitTestSupport -destination "${{ matrix.destination }}"

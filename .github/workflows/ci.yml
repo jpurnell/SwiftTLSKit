@@ -7,10 +7,8 @@
 # quality-gate is not installed on the runners: it is the owner's tool, and the git hooks run it. CI builds and
 # tests; it does not replace the gate.
 #
-# NOT YET RUN. The first run on GitHub is the first evidence Linux gets. A red Linux job is the expected outcome of
-# a first run, and is fixed with a test, never by skipping the job. The arm64 Linux runner is free only for public
-# repositories; if this private repository cannot use it, that job will not start, and it is replaced with a QEMU
-# emulated job rather than dropped.
+# First run 2026-11-11 (PR #4): all eight jobs green, 135 tests on each Linux job. A red job is fixed with a test,
+# never by skipping the job. The arm64 runner started on this private repository, so no emulation is needed.
 
 name: CI
 

@@ -19,8 +19,9 @@ no event loops, no listener framework.
 
 - Swift 6.2 or later
 - macOS 14, iOS 17, tvOS 17 or visionOS 1, or later. Tested on macOS (arm64); built for
-  generic iOS, tvOS and visionOS devices with `xcodebuild`. Linux is not declared: the code
-  avoids Darwin-only API, but it has not been built or tested there.
+  generic iOS, tvOS and visionOS devices with `xcodebuild`. Also built and tested on Linux,
+  x86_64 and arm64, with Swift 6.2 and the newest stable toolchain, by CI
+  (`.github/workflows/ci.yml`; first green run 2026-11-11, 135 tests).
 
 ## Installation
 

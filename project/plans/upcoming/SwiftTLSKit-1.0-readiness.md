@@ -5,8 +5,8 @@
 ## Decisions (2026-11-11)
 
 1. **Enums stay exhaustive.** A new case is a major version; future capabilities arrive as new types.
-2. **Release path: smaller commits, each a feature/fix on its own branch, working toward `1.0.0-beta.1`** (not 0.3.0 → rc). Adopters pin `from: "0.2.1"`; SwiftPM never selects a prerelease for that range, so betas are opt-in and cannot reach them by accident. Any breaking change before beta.1 is still announced to the adopters.
-3. **Linux scope includes arm64** (swift:6.2 and latest, x86_64 and arm64). Caveat: GitHub's hosted arm64 runners are free only for public repos; this one is private, so the arm64 job may be unavailable or billed. If it is, fall back to QEMU emulation.
+2. **Release path: smaller commits, each a feature/fix on its own branch, working toward `1.0.0-beta.1`** (not 0.3.0 → rc). Adopters pin `.upToNextMinor(from: "0.2.1")`; SwiftPM never selects a prerelease for that range, so betas are opt-in and cannot reach them by accident. Any breaking change before beta.1 is still announced to the adopters.
+3. **Linux scope includes arm64** (swift:6.2 and latest, x86_64 and arm64). Outcome: the hosted arm64 runner started on this private repo; no emulation needed. (Billing for it while private is unverified.)
 4. **`description` text is not API** (documented in `StabilityPolicy.md`).
 5. **GitHub:** confirmed — `jpurnell/SwiftTLSKit`, private, default branch `main`, Actions enabled (`allowed_actions: all`).
 6. **`ClientHandshakeFailure` string parse: investigated.** NIOSSL has no typed path: `BoringSSLInternalError` keeps the packed code and the reason in private storage and exposes only `description` (`"Error: <decimal code> <ERR_error_string_n text>"`). It is not constructible outside NIOSSL, so it cannot even be matched by value. Plan: keep the numeric read (the documented format), **add the reason name** from the same description (`CERTIFICATE_VERIFY_FAILED`, `WRONG_VERSION_NUMBER`, `UNSUPPORTED_PROTOCOL`, `TLSV1_ALERT_PROTOCOL_VERSION`) as a second signal, because BoringSSL regenerates numbers but the name and number come from one table; an unrecognised format still degrades to `.other`, never to a wrong case. Both forms are pinned by the existing real-handshake tests, which CI now runs on Linux as well.
@@ -65,9 +65,7 @@ Housekeeping: show where the plan was wrong).
 - `README.md`, `CHANGELOG.md`, `project/master_plan.md`, `DesignNotes.md` (E)
 
 **Release shape.** Breaking changes ride in **0.3.0**, then `1.0.0-rc.1`, then `1.0.0` with no
-code change beyond docs. SwiftPM caveat: adopters declare `from: "0.2.1"`, which SwiftPM reads as
-*up to next major* — so they will pick up a 0.3.0 on their next resolve whether or not it
-breaks them. Workstreams B and A are non-breaking; any C/D change that breaks must be agreed with
+code change beyond docs. Correction (2026-11-11): an earlier draft said adopters declare `from: "0.2.1"` and would auto-receive a breaking 0.3.0. They declare `.upToNextMinor(from: "0.2.1")` (checked in all six), so a 0.3.0 reaches nobody without a manifest edit, and a prerelease tag is never selected by that range. Workstreams B and A are non-breaking; any C/D change that breaks must be agreed with
 the adopters (or be 0.3.0 with their pins moved to `.upToNextMinor` first).
 
 ### A. CI and Linux
@@ -219,7 +217,7 @@ an AI client and the project's own rules forbid adding a runtime surface here.
   should have been refused is behavioural, and noted in CHANGELOG as such).
 - C.5 (IPv6 text) is observable: 0.3.0, called out in CHANGELOG with the migration.
 - Any enum case added pre-freeze is source-breaking: 0.3.0, coordinated with adopters, who are
-  on `from: "0.2.1"` and so will receive it on resolve.
+  on `.upToNextMinor(from: "0.2.1")`, so each must edit its requirement to receive it.
 - Adoption is incremental: CI/Linux need no consumer change at all.
 
 ## 8. Backend Abstraction
@@ -281,7 +279,7 @@ log line, and is differential-tested against the maintained one. **Alternative:*
 (1) That the Linux run reveals only small fixes. If BoringSSL's error text or hostname behaviour
 differs materially, `ClientHandshakeFailure` (which parses NIOSSL's description for the packed
 error code) may need redesign, and that is a public-API change inside the freeze window.
-(2) That `from: "0.2.1"` adopters can absorb a 0.3.0. They resolve it automatically.
+(2) That adopters can absorb a breaking change at all: they must each edit their manifest, six packages.
 (3) That text of `description` is not API — adopters may already match on it.
 
 **What an experienced critic would say.** "You are freezing a surface that still depends on
@@ -347,7 +345,7 @@ freeze, and 1.0.0-rc.1 gives adopters a window.
 - [ ] Module placement follows existing structure (library target gains one internal file)
 - [ ] No forbidden patterns (`withUnsafe*`, force unwraps, X509 in library)
 - [ ] Source compatibility assessed; breaking items named (C.5, any pre-freeze enum case)
-- [ ] Adoption path documented (`from: "0.2.1"` caveat)
+- [ ] Adoption path documented (`.upToNextMinor` pins; prereleases are opt-in)
 - [ ] Alternatives with pros/cons
 - [ ] Reference truth identified (swift-certificates, RFC 5280, RFC 5952, X.690)
 - [ ] Adversarial review complete

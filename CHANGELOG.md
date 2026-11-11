@@ -4,6 +4,12 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Continuous integration** (`.github/workflows/ci.yml`): build and test on Linux (x86_64 and
+  arm64; Swift 6.2 and the newest stable toolchain) and macOS, and build both products for
+  generic iOS, tvOS and visionOS devices. First run 2026-11-11: all green, 135 tests on every
+  Linux job. No source change was needed for Linux.
+
 ## [0.2.1] - 2026-10-09
 
 A correction to what the documentation says, and one addition to the

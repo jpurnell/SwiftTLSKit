@@ -4,6 +4,11 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- The lockfile moves to swift-nio 2.105.0 and swift-nio-ssl 2.37.6, so that CI and local runs use
+  the versions a consumer resolves. The full suite passes on them, including the handshake tests
+  behind `ClientHandshakeFailure`. The minimum versions in `Package.swift` are unchanged.
+
 ## [1.0.0-beta.1] - 2026-11-13
 
 The candidate for 1.0.0, after a readiness review: CI on Linux and macOS, an independent security

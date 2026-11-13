@@ -169,8 +169,12 @@ Tests (a consumer's, and this package's)
     `SwiftTLSKitTestSupport`; a server's key is on disk and the permission check is the point.
 15. **The package has no randomness of its own.** Test support takes the caller's generator.
     It ships one a caller may construct, `SeededGenerator`, and constructs none itself.
-16. **BoringSSL's errors are read by code, from an error that is structurally one** — not by
-    searching an error's text for a reason name.
+16. **BoringSSL's errors are read from an error that is structurally one** — not by searching
+    an error's text for a reason name. *Amended 2026-11-13:* first by the packed code alone;
+    now by the code **and** the reason name, because NIOSSL has no typed path (investigated:
+    `BoringSSLInternalError` keeps both private, and cannot be constructed outside NIOSSL) and
+    BoringSSL renumbers reasons. The name is read by position (the fifth `:` field, its first
+    word, compared whole), not searched for. Where the two disagree the answer is `other`.
 
 The reasoning for each, and where the code forced a deviation from the first design, is in
 `Sources/SwiftTLSKit/SwiftTLSKit.docc/DesignNotes.md`.
@@ -223,11 +227,13 @@ The reasoning for each, and where the code forced a deviation from the first des
 - ~~`CertificateSummary.subjectAlternativeNames` depends on NIOSSL's underscored
   `_subjectAlternativeNames()`.~~ Read from the certificate's DER by `DERSubjectAlternativeNames`
   instead (unreleased, `feat/san-der-parser`).
-- `ClientHandshakeFailure.wrongHostname(under:)` has a non-Apple branch that nothing here has
-  run; it states NIOSSL's documented behaviour.
-- `ClientHandshakeFailure` reads BoringSSL's packed error code from the front of NIOSSL's
-  description, because NIOSSL keeps the code private. A change in that format is caught by
-  the handshake tests, not by the compiler.
+- ~~`ClientHandshakeFailure.wrongHostname(under:)` has a non-Apple branch that nothing here has
+  run.~~ Run on Linux in CI since 2026-11-11: the wrong-hostname test expects
+  `.hostnameMismatch` there, and passes on all four Linux jobs.
+- `ClientHandshakeFailure` reads BoringSSL's error from the *text* of NIOSSL's description (the
+  packed number and the reason name), because NIOSSL keeps both private. If NIOSSL changes the
+  format of both, the result is `.other(description)`, never a wrong class; the handshake tests
+  catch it, the compiler does not.
 - A consumer of `SwiftTLSKit` alone still *resolves* swift-certificates and swift-asn1 —
   SwiftPM declares dependencies per package. It does not build or link them.
 - This suite's test keys are reproducible from a seed in the repository (the gate requires a

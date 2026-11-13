@@ -117,9 +117,20 @@ measurement of one platform and not a property of this package.
 ``ClientHandshakeFailure`` was a test helper. Both adopters rebuilt it, and one took a
 dependency on swift-nio-ssl to do so. Publishing it moves the fragile part — NIOSSL keeps
 BoringSSL's error code private, so it is read from the front of the error's description —
-into the one package whose tests perform every kind of failed handshake. The code is compared
-as a number, from an error that is structurally a BoringSSL one; an error whose text merely
-contains `CERTIFICATE_VERIFY_FAILED` is not classified by it.
+into the one package whose tests perform every kind of failed handshake. It is read only from
+an error that is structurally a BoringSSL one; an error whose text merely contains
+`CERTIFICATE_VERIFY_FAILED` is not classified by it.
+
+It was first read by the packed number alone, on the grounds that the number is what
+BoringSSL's table is indexed by. NIOSSL has no typed alternative (its `BoringSSLInternalError`
+keeps the code and the reason private and cannot be constructed outside NIOSSL), and BoringSSL
+renumbers reasons when it regenerates the table, so a number that was right yesterday can name
+another reason tomorrow. The reason's name comes out of the same table and moves with it. Both
+are in the description (`Error: 268435581 error:1000007d:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED at …`),
+so both are read: a well-formed name is believed; a known number that contradicts it, or a name
+that is none of the four, gives ``ClientHandshakeFailure/other(_:)`` rather than a guess; and with
+no name the number is read as before. The name is taken by position and compared whole, never
+searched for, so a file name or a longer reason that contains one does not count.
 
 A peer that closes without sending anything is ``ClientHandshakeFailure/other(_:)``, not
 ``ClientHandshakeFailure/peerDoesNotSpeakTLS``. Nothing arrived, so there is nothing to say

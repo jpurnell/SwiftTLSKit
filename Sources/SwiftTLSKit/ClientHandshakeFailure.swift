@@ -173,9 +173,6 @@ extension ClientHandshakeFailure {
         static let alertProtocolVersion: UInt32 = 1070
     }
 
-    /// The prefix NIOSSL puts before BoringSSL's packed error code in an error's description.
-    private static let codePrefix = "Error: "
-
     /// The BoringSSL errors a handshake failure carries, oldest first, or none if `error` is
     /// not one.
     private static func boringSSLErrors(in error: any Error) -> [BoringSSLInternalError] {
@@ -193,12 +190,97 @@ extension ClientHandshakeFailure {
     }
 
     /// The class one BoringSSL error belongs to, or `nil` if it is none of them.
-    ///
-    /// NIOSSL keeps the packed code private and prints it first in the description, in decimal,
-    /// so that is where it is read from. The number is compared, not the reason's name: the
-    /// name comes from a string table, and the number is the thing the table is indexed by.
     private static func classify(_ error: BoringSSLInternalError) -> ClientHandshakeFailure? {
-        let description = error.description
+        classify(boringSSLDescription: error.description)
+    }
+
+    /// The class a BoringSSL error's description belongs to, or `nil` if it is none of them.
+    ///
+    /// NIOSSL keeps a BoringSSL error's code and reason private, and prints both:
+    ///
+    ///     Error: 268435581 error:1000007d:SSL routines:OPENSSL_internal:CERTIFICATE_VERIFY_FAILED at <file>:<line>
+    ///
+    /// There are two things to read, and they can fail separately. The packed number is
+    /// BoringSSL's ABI, but BoringSSL renumbers reasons when it regenerates its tables. The
+    /// reason's name comes out of the same table, so a renumbering moves the two together and
+    /// leaves the name saying what it always said. The name is `ERR_error_string_n`'s text, and
+    /// NIOSSL could stop printing it. So:
+    ///
+    /// - A well-formed name is believed. If the number is one this package knows and says
+    ///   something else, nothing here knows which is right, and the answer is `nil`; a number
+    ///   that is merely not one it knows is the renumbering, and the name stands.
+    /// - A well-formed name that is not one of the four is `nil`, whatever the number says: the
+    ///   number would now be describing some other reason.
+    /// - With no name to read, the number is read as it always was.
+    ///
+    /// `nil` becomes ``other(_:)`` with the description, which is the honest answer to a format
+    /// nothing here recognises.
+    ///
+    /// - Parameter description: A `BoringSSLInternalError`'s `description`.
+    static func classify(boringSSLDescription description: String) -> ClientHandshakeFailure? {
+        let number = classifyByNumber(description)
+        switch classifyByName(description) {
+        case .known(let named):
+            guard let number else { return named }
+            return number == named ? named : nil
+        case .unknown:
+            return nil
+        case .absent:
+            return number
+        }
+    }
+
+    /// What reading a description's reason name found.
+    private enum ReasonName {
+        /// There is no name to read: the description is not in the form that carries one.
+        case absent
+        /// A name in the SSL library that is none of the four.
+        case unknown
+        case known(ClientHandshakeFailure)
+    }
+
+    /// The prefix NIOSSL puts before BoringSSL's packed error code in an error's description.
+    private static let codePrefix = "Error: "
+    private static let nameMarker = "error:"
+    private static let sslLibraryName = "SSL routines"
+    /// `error:`, the code in hex, the library, the function, and then the reason and the rest.
+    private static let nameFieldCount = 5
+    private static let reasonField = 4
+
+    /// The reasons that are classes, by the name `ERR_error_string_n` prints for them.
+    private static let namedReasons: [String: ClientHandshakeFailure] = [
+        "CERTIFICATE_VERIFY_FAILED": .certificateNotTrusted,
+        "WRONG_VERSION_NUMBER": .peerDoesNotSpeakTLS,
+        "UNSUPPORTED_PROTOCOL": .noSharedProtocolVersion,
+        "TLSV1_ALERT_PROTOCOL_VERSION": .noSharedProtocolVersion,
+    ]
+
+    /// The text after NIOSSL's `Error: <number> ` prefix, which is the whole description when
+    /// there is no such prefix.
+    private static func afterCode(_ description: String) -> Substring {
+        guard description.hasPrefix(codePrefix) else { return description[...] }
+        let afterPrefix = description.dropFirst(codePrefix.count)
+        let afterDigits = afterPrefix.drop { $0.isASCII && $0.isNumber }
+        return afterDigits.drop { $0 == " " }
+    }
+
+    private static func classifyByName(_ description: String) -> ReasonName {
+        let rest = afterCode(description)
+        guard rest.hasPrefix(nameMarker) else { return .absent }
+        let fields = rest.split(separator: ":", maxSplits: nameFieldCount - 1, omittingEmptySubsequences: false)
+        guard fields.count == nameFieldCount else { return .absent }
+        // Only the reason's first word: what follows it is ` at <file>:<line>`, and a file name
+        // is not a reason.
+        let reason = fields[reasonField].prefix { !$0.isWhitespace }
+        guard !reason.isEmpty else { return .absent }
+        guard fields[2] == sslLibraryName, let named = namedReasons[String(reason)] else { return .unknown }
+        return .known(named)
+    }
+
+    /// The class the packed number gives, or `nil` if it is not an SSL reason this package knows.
+    ///
+    /// The number is compared, not a name: it is what BoringSSL's table is indexed by.
+    private static func classifyByNumber(_ description: String) -> ClientHandshakeFailure? {
         guard description.hasPrefix(codePrefix) else { return nil }
         let digits = description.dropFirst(codePrefix.count).prefix { $0.isASCII && $0.isNumber }
         guard let code = UInt32(digits) else { return nil }

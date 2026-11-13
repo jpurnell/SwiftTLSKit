@@ -4,6 +4,48 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+### Breaking — source, for callers of an earlier release
+Every adopter pins `.upToNextMinor(from: "0.2.1")` and receives none of this until it edits its
+manifest. Nothing here is a change of behaviour for a server whose key is private to its user in a
+directory only that user can write. The audit behind it is `project/plans/upcoming/api_audit_1.0.md`.
+- **Three new cases in exhaustive enums:** `ServerIdentityError.privateKeyOwnedByAnotherUser(path:ownerID:)`,
+  `.privateKeyDirectoryWritable(path:directory:mode:)` and `.privateKeyHasAccessControlList(path:)`, and
+  `ClientTrustError.noPeerCertificate`. A `switch` over either enum with no `default` needs the new cases.
+  These are the last cases added: the package's enumerations are closed from here on.
+- **`ServerTLSContext.makeHandler()` and `ReloadableServerTLS.makeHandler()` return `any ChannelHandler`,**
+  not `NIOSSLServerHandler`. Adding it to a pipeline is unchanged.
+- **Three members are no longer public:** `ServerTLSContext.sslContext`,
+  `LoadedServerIdentity.certificateChain` and `ClientTLSContext.makeHandlers(serverHostname:)` are
+  `package`-level, visible to this package's tests and to nothing else. The first two are NIOSSL types in
+  a public interface, which would tie every release to NIOSSL's major version. `makeHandlers` returned the
+  TLS handler and, for a pinned trust, the pin handler separately, and a caller who added only the first
+  connected without the pin: use `addHandlers(to:serverHostname:)`, which adds all of them. None of the six
+  adopters checked used any of the three.
+
+### Changed — a key is refused if somebody else can replace it
+A private key at `0600` is not private if its owner is someone else, or if a directory above it can be
+written by group or others: the next reload would serve their identity. `ServerIdentity.load(now:)` now
+refuses a key that:
+- is owned by a user other than the one running the process and root;
+- is in, or below, a directory that its group or others can write, unless that directory has the sticky
+  bit (as `/tmp` does). The path is resolved first, so a `live/` link is judged by where the key is;
+- on macOS, has an access control list. (On Linux a POSIX ACL's mask is in the group bits, which the
+  mode check already refused.)
+
+This can stop a server that used to start, on a system whose directories are group-writable by default.
+Each message names the directory or the owner and, where one exists, the command that fixes it.
+
+### Changed — messages
+- **A path in an error message has its control characters written out** (`\n`, `\u{1B}`), so a path
+  cannot break or forge a line in the log the message goes to.
+- **`ClientTrustError.noPeerCertificate` replaces `pinMismatch("", "")`** when the server presents no
+  certificate: a message that said "a certificate with SHA-256 ." now says that none was presented.
+- The text of a `description` is not API; see the new article *What 1.x promises*.
+
+### Added
+- **`StabilityPolicy.md`:** what a 1.x release will and will not change, which enumerations are closed,
+  what is not API, the NIO coupling, and the limits the package does not claim to cover.
+
 ### Changed
 - **IPv6 addresses in `CertificateSummary.subjectAlternativeNames` are written as RFC 5952
   writes them.** `::1`, not `0:0:0:0:0:0:0:1`; `2001:db8::1`, not

@@ -36,6 +36,39 @@ public enum ServerIdentityError: Error, Sendable, Hashable {
     ///   - mode: Its permission bits.
     case privateKeyPermissionsTooOpen(path: String, mode: UInt16)
 
+    /// The private key belongs to a user who is neither the one running this process nor root.
+    ///
+    /// Its mode can be `0600` and it is still not private: its owner can read it, and replace it
+    /// with a key and certificate of their own that the next reload then serves.
+    ///
+    /// - Parameters:
+    ///   - path: The key file.
+    ///   - ownerID: The numeric ID of the user who owns it.
+    case privateKeyOwnedByAnotherUser(path: String, ownerID: UInt32)
+
+    /// A directory above the private key can be written by its group or by others, so someone
+    /// else could replace the key by renaming it or the directory.
+    ///
+    /// A directory with the sticky bit set, such as `/tmp`, does not count: there only a file's
+    /// owner can rename or remove it.
+    ///
+    /// - Parameters:
+    ///   - path: The key file.
+    ///   - directory: The directory that can be written, which may be the key's own or any one
+    ///     above it. A symbolic link in `path` is followed, so this is where the key really is.
+    ///   - mode: The directory's permission bits.
+    case privateKeyDirectoryWritable(path: String, directory: String, mode: UInt16)
+
+    /// The private key has an access control list, which can grant access its mode does not
+    /// show.
+    ///
+    /// Only macOS keeps access control lists apart from the mode bits, so only there is this
+    /// raised. On Linux a POSIX ACL's mask is the group bits, which
+    /// ``privateKeyPermissionsTooOpen(path:mode:)`` already refuses.
+    ///
+    /// - Parameter path: The key file.
+    case privateKeyHasAccessControlList(path: String)
+
     /// The certificate chain file holds no certificate.
     ///
     /// - Parameter path: The chain file.
@@ -83,29 +116,65 @@ extension ServerIdentityError: CustomStringConvertible {
     public var description: String {
         switch self {
         case .unreadable(let path, let reason):
-            return "Cannot read \(path): \(reason)."
+            return "Cannot read \(Self.printable(path)): \(reason)."
         case .notRegularFile(let path):
-            return "\(path) is not a regular file."
+            return "\(Self.printable(path)) is not a regular file."
         case .fileTooLarge(let path, let limit):
-            return "\(path) is larger than \(limit) bytes, which no certificate chain or private key is."
+            return "\(Self.printable(path)) is larger than \(limit) bytes, which no certificate chain or private key is."
         case .privateKeyPermissionsTooOpen(let path, let mode):
-            return "The private key at \(path) has mode \(Self.octal(mode)), "
+            return "The private key at \(Self.printable(path)) has mode \(Self.octal(mode)), "
                 + "which lets group or others read or write it. Run: chmod 600 \(Self.shellQuoted(path))"
+        case .privateKeyOwnedByAnotherUser(let path, let ownerID):
+            return "The private key at \(Self.printable(path)) is owned by user \(ownerID), who is neither the user "
+                + "running this process nor root, and so can read it and replace it."
+        case .privateKeyDirectoryWritable(let path, let directory, let mode):
+            return "The directory \(Self.printable(directory)), which holds or is above the private key at "
+                + "\(Self.printable(path)), has mode \(Self.octal(mode)), which lets group or others add, rename or "
+                + "remove files in it, and so replace the key. Run: chmod go-w \(Self.shellQuoted(directory))"
+        case .privateKeyHasAccessControlList(let path):
+            return "The private key at \(Self.printable(path)) has an access control list, which can grant access "
+                + "its mode does not show. Run: chmod -N \(Self.shellQuoted(path))"
         case .emptyCertificateChain(let path):
-            return "\(path) holds no certificates."
+            return "\(Self.printable(path)) holds no certificates."
         case .invalidCertificateChain(let path):
-            return "\(path) holds a certificate that cannot be read as PEM."
+            return "\(Self.printable(path)) holds a certificate that cannot be read as PEM."
         case .invalidPrivateKey(let path):
-            return "\(path) does not hold a private key that can be read as unencrypted PEM."
+            return "\(Self.printable(path)) does not hold a private key that can be read as unencrypted PEM."
         case .privateKeyDoesNotMatchCertificate(let certificateChainPath, let privateKeyPath):
-            return "The private key at \(privateKeyPath) does not match the leaf certificate in \(certificateChainPath)."
+            return "The private key at \(Self.printable(privateKeyPath)) does not match the leaf certificate in \(Self.printable(certificateChainPath))."
         case .expired(let path, let notValidAfter):
-            return "The leaf certificate in \(path) expired at \(notValidAfter.formatted(.iso8601))."
+            return "The leaf certificate in \(Self.printable(path)) expired at \(notValidAfter.formatted(.iso8601))."
         case .notYetValid(let path, let notValidBefore):
-            return "The leaf certificate in \(path) is not valid until \(notValidBefore.formatted(.iso8601))."
+            return "The leaf certificate in \(Self.printable(path)) is not valid until \(notValidBefore.formatted(.iso8601))."
         case .contextRejected(let reason):
             return "The TLS library refused this identity: \(reason)."
         }
+    }
+
+    /// `text` with every control character written out, so that a path cannot break or forge a
+    /// line in the log a description goes to.
+    private static func printable(_ text: String) -> String {
+        var written = ""
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "\n": written += "\\n"
+            case "\r": written += "\\r"
+            case "\t": written += "\\t"
+            default:
+                if isControl(scalar) {
+                    written += "\\u{" + String(scalar.value, radix: 16, uppercase: true) + "}"
+                } else {
+                    written.unicodeScalars.append(scalar)
+                }
+            }
+        }
+        return written
+    }
+
+    /// A character that can end or rewrite a line: the C0 and C1 controls, DEL, and the Unicode
+    /// line and paragraph separators.
+    private static func isControl(_ scalar: Unicode.Scalar) -> Bool {
+        scalar.value < 0x20 || (0x7f...0x9f).contains(scalar.value) || scalar.value == 0x2028 || scalar.value == 0x2029
     }
 
     /// `path` as one shell word, for a command an operator pastes.
@@ -116,6 +185,24 @@ extension ServerIdentityError: CustomStringConvertible {
     /// such as `/etc/ssl/a; rm -rf ~` is a command in the hint. A path that begins with `-` is an
     /// option to `chmod` however it is quoted, so it follows `--`.
     private static func shellQuoted(_ path: String) -> String {
+        // A control character cannot be written in a line, so it is written the way bash and zsh
+        // read it back: `$'…'`, with the control characters as escapes.
+        if path.unicodeScalars.contains(where: isControl) {
+            let escaped = path.unicodeScalars.map { scalar -> String in
+                switch scalar {
+                case "\\": return "\\\\"
+                case "'": return "\\'"
+                case "\n": return "\\n"
+                case "\r": return "\\r"
+                case "\t": return "\\t"
+                default:
+                    guard isControl(scalar) else { return String(scalar) }
+                    let hex = String(scalar.value, radix: 16, uppercase: true)
+                    return scalar.value <= 0xff ? "\\x" + (hex.count < 2 ? "0" : "") + hex : "\\u" + String(repeating: "0", count: 4 - hex.count) + hex
+                }
+            }.joined()
+            return (path.hasPrefix("-") ? "-- " : "") + "$'" + escaped + "'"
+        }
         let literal = path.unicodeScalars.allSatisfy { scalar in
             scalar.isASCII && (scalar.properties.isAlphabetic || ("0"..."9").contains(Character(scalar))
                 || "_@%+=:,./-".unicodeScalars.contains(scalar))

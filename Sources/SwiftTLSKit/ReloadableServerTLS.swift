@@ -178,8 +178,8 @@ public final class ReloadableServerTLS: Sendable {
 
     /// A TLS handler for one connection, from the current context.
     ///
-    /// - Returns: A new `NIOSSLServerHandler`.
-    public func makeHandler() -> NIOSSLServerHandler {
+    /// - Returns: A new TLS handler.
+    public func makeHandler() -> any ChannelHandler {
         current.makeHandler()
     }
 

@@ -91,6 +91,9 @@ need a restart — see <doc:ReloadingWithoutRestart>.
 | A directory, FIFO or device | `PATH is not a regular file.` |
 | A file over 1 MiB | `PATH is larger than 1048576 bytes, which no certificate chain or private key is.` |
 | A key its group or others can reach | `The private key at PATH has mode 0644, which lets group or others read or write it. Run: chmod 600 PATH` |
+| A key someone else owns | `The private key at PATH is owned by user 1234, who is neither the user running this process nor root, and so can read it and replace it.` |
+| A key in a directory others can write | `The directory DIR, which holds or is above the private key at PATH, has mode 0777, which lets group or others add, rename or remove files in it, and so replace the key. Run: chmod go-w DIR` |
+| A key with an access control list (macOS) | `The private key at PATH has an access control list, which can grant access its mode does not show. Run: chmod -N PATH` |
 | A chain with no certificate | `PATH holds no certificates.` |
 | A damaged certificate | `PATH holds a certificate that cannot be read as PEM.` |
 | A damaged or encrypted key | `PATH does not hold a private key that can be read as unencrypted PEM.` |
@@ -110,6 +113,18 @@ A symbolic link is followed and the mode judged is the target's — certbot's `l
 is symbolic links into `archive/`.
 
 The certificate chain is public and may have any mode.
+
+### Who can replace the key
+
+A key at `0600` is not private if somebody else can swap it for their own: the next reload would
+serve their identity. So the key's owner must be the user running the process or root, and no
+directory from the key's own up to `/` may be writable by its group or by others — unless it has
+the sticky bit, as `/tmp` does, where only a file's owner can rename or remove it. On macOS a key
+with an access control list is refused too, because there the list is kept apart from the mode.
+A symbolic link is followed first, so a certbot `live/` link is judged by `archive/`.
+
+These can refuse a key that used to load. Each message names the directory or the owner and, where
+there is one, the command that fixes it.
 
 ### Time is supplied by the caller
 

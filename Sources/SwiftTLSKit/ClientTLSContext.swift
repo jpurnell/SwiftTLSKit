@@ -68,18 +68,17 @@ public struct ClientTLSContext: Sendable {
 
     /// The handlers that secure one connection to `serverHostname`.
     ///
-    /// Add all of them, in order, ahead of the application's handlers —
-    /// ``addHandlers(to:serverHostname:)`` does exactly that.
-    ///
-    /// For ``ClientTrust/pinned(_:additionalRoots:)`` there are two: the TLS handler, and the
-    /// handler that checks the pin and holds application data until it has. Leaving the second
-    /// out leaves the pin unenforced.
+    /// Not public, so that nobody can add only some of them: for
+    /// ``ClientTrust/pinned(_:additionalRoots:)`` there are two, the TLS handler and the handler
+    /// that checks the pin and holds application data until it has, and a pipeline given only
+    /// the first connects with no pin. ``addHandlers(to:serverHostname:)`` adds them all, in
+    /// order, ahead of the application's handlers.
     ///
     /// - Parameter serverHostname: The name or IP address of the server being connected to.
     /// - Returns: The handlers, outermost first.
     /// - Throws: ``ClientTrustError/emptyServerHostname`` or
     ///   ``ClientTrustError/invalidServerHostname(_:)``.
-    public func makeHandlers(serverHostname: String) throws(ClientTrustError) -> [any ChannelHandler] {
+    package func makeHandlers(serverHostname: String) throws(ClientTrustError) -> [any ChannelHandler] {
         guard !serverHostname.isEmpty else { throw .emptyServerHostname }
         // An address is not sent as SNI. NIOSSL then verifies the certificate against the
         // address the channel is connected to.

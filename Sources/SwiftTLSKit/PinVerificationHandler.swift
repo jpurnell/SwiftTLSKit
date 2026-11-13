@@ -101,7 +101,7 @@ final class PinVerificationHandler: ChannelDuplexHandler {
     private func requireMatch(context: ChannelHandlerContext) throws {
         let tls = try context.pipeline.syncOperations.handler(type: NIOSSLClientHandler.self)
         guard let leaf = tls.peerCertificate else {
-            throw ClientTrustError.pinMismatch(certificateSHA256: "", publicKeySHA256: "")
+            throw ClientTrustError.noPeerCertificate
         }
         let presented = try CertificateSummary(leaf)
         let matches = pins.contains { pin in

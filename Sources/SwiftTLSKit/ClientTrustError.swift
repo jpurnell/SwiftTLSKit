@@ -46,6 +46,13 @@ public enum ClientTrustError: Error, Sendable, Hashable {
     /// builds its own handlers would connect without it.
     case pinsNeedHandlers
 
+    /// The handshake finished and the server presented no certificate, so there is nothing to
+    /// compare with a pin.
+    ///
+    /// Refused, as a pin that cannot be checked is not a pin that matched. It is not the same as
+    /// ``pinMismatch(certificateSHA256:publicKeySHA256:)``, which says what was presented.
+    case noPeerCertificate
+
     /// The server's certificate chain and hostname were valid, and its leaf matched no pin.
     ///
     /// Delivered through the channel pipeline as an error, after which the connection is
@@ -91,6 +98,8 @@ extension ClientTrustError: CustomStringConvertible {
         case .pinsNeedHandlers:
             return "A pinned trust cannot be expressed as a TLSConfiguration: the pin is checked by a handler "
                 + "after the handshake. Use ClientTLSContext.addHandlers(to:serverHostname:)."
+        case .noPeerCertificate:
+            return "The server presented no certificate, so there is nothing to compare with the pins. Nothing was sent to it."
         case .pinMismatch(let certificateSHA256, let publicKeySHA256):
             return "The server's certificate matches none of the pins. It presented a certificate with SHA-256 "
                 + "\(certificateSHA256) and a public key with SHA-256 \(publicKeySHA256). Nothing was sent to it."

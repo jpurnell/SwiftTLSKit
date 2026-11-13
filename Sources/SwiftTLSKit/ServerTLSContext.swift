@@ -70,8 +70,12 @@ public struct ServerTLSContext: Sendable {
     /// The options the context was built with.
     public let options: ServerTLSOptions
 
-    /// The NIOSSL context, for a consumer that builds its own handler.
-    public let sslContext: NIOSSLContext
+    /// The NIOSSL context the handlers are made from.
+    ///
+    /// Not public: a NIOSSL type in the public interface ties every 1.x release to NIOSSL 2, and
+    /// nothing outside this package builds a handler other than with ``makeHandler()``. The
+    /// package's own tests compare it, to show that a reload that changed nothing kept it.
+    package let sslContext: NIOSSLContext
 
     /// SHA-256 of each certificate served, leaf first.
     let chainFingerprints: [String]
@@ -128,9 +132,8 @@ public struct ServerTLSContext: Sendable {
 
     /// A TLS handler for one connection.
     ///
-    /// - Returns: A new `NIOSSLServerHandler`. A handler serves one channel; make one per
-    ///   connection.
-    public func makeHandler() -> NIOSSLServerHandler {
+    /// - Returns: A new TLS handler. A handler serves one channel; make one per connection.
+    public func makeHandler() -> any ChannelHandler {
         NIOSSLServerHandler(context: sslContext)
     }
 

@@ -19,7 +19,7 @@ directory only that user can write. The audit behind it is `project/plans/upcomi
   `package`-level, visible to this package's tests and to nothing else. The first two are NIOSSL types in
   a public interface, which would tie every release to NIOSSL's major version. `makeHandlers` returned the
   TLS handler and, for a pinned trust, the pin handler separately, and a caller who added only the first
-  connected without the pin: use `addHandlers(to:serverHostname:)`, which adds all of them. None of the six
+  connected without the pin: use `addHandlers(to:serverHostname:)`, which adds all of them. None of the seven
   adopters checked used any of the three.
 
 ### Changed — a key is refused if somebody else can replace it

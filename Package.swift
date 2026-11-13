@@ -30,10 +30,14 @@ let package = Package(
         .library(name: "SwiftTLSKitTestSupport", targets: ["SwiftTLSKitTestSupport"]),
     ],
     dependencies: [
-        // Floors match VaultMCP's, which are the advisory-fixed versions the portfolio settled
-        // on. A lower floor here would let a consumer resolve below them.
-        .package(url: "https://github.com/apple/swift-nio.git", from: "2.102.0"),
-        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.37.4"),
+        // Minimums, not pins: `from:` lets a consumer resolve anything newer within the major.
+        // The floors are the versions this package's lockfile and CI run, so the lowest version
+        // a consumer can resolve is one the suite has been run against; a lower floor is one
+        // nobody had run. They were 2.102.0 and 2.37.4, VaultMCP's advisory-fixed versions,
+        // which this is above. Raising a floor is a change a consumer sees, so it is in the
+        // CHANGELOG.
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.105.0"),
+        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.37.6"),
         // SHA-256, for certificate and public-key pins and for the fingerprints an operator
         // compares against `openssl`. NIOSSL exposes no digest, and a hand-written one is not
         // something a TLS package should contain. On Apple platforms this is CryptoKit

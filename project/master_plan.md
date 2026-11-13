@@ -249,15 +249,15 @@ The reasoning for each, and where the code forced a deviation from the first des
   - [x] A key is refused for owner, writable ancestor directory, or an ACL; `noPeerCertificate`;
     the NIO surface narrowed; the enums closed (PR #8; `api_audit_1.0.md`)
   - [x] `StabilityPolicy.md`; this reconciliation
-  - [ ] Tag `1.0.0-beta.1`
+  - [x] Tagged `1.0.0-beta.1`, 2026-11-13
 
 ### What's Next
 - [x] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — seven
   packages depend on 0.2.1 (see Target Users).
 - [x] ~~Merge `feat/adopter-feedback`, tag 0.2.0~~ (done 2026-10-06)
 - [x] ~~Move the two adopters to it~~ — every adopter found on 2026-11-13 is on 0.2.1.
-- [ ] Tag `1.0.0-beta.1`. Adopters do not receive it until they ask for it: a prerelease is never
-  selected by `.upToNextMinor(from: "0.2.1")`.
+- [x] ~~Tag `1.0.0-beta.1`~~ — done 2026-11-13. Adopters do not receive it until they ask for it:
+  a prerelease is never selected by `.upToNextMinor(from: "0.2.1")`.
 - [ ] Move the adopters to the beta, one at a time, and record what each finds. **The criterion
   for 1.0.0** is that every adopter that has moved reports nothing that needs a source change
   to this package, and the security review's decisions still hold. Findings that would need a
@@ -399,7 +399,7 @@ freeze; the security review; documentation), and the review found more than the 
   lesson recorded in the review: a table of known-bad spellings is not a review of the parser.
 - [x] ~~The plan assumed adopters would auto-resolve a breaking 0.3.0~~ — wrong; every adopter
   pins `.upToNextMinor`. Recorded in the proposal where it was corrected.
-- [ ] `1.0.0-beta.1`, then adopters, then `1.0.0`.
+- [x] ~~`1.0.0-beta.1`~~ tagged 2026-11-13. [ ] Then adopters, then `1.0.0`.
 
 ### Future
 - Pinning during the handshake, if NIOSSL stabilises its additional-verification callback.
@@ -416,7 +416,7 @@ freeze; the security review; documentation), and the review found more than the 
 
 ---
 
-**Last Updated:** 2026-11-13, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
+**Last Updated:** 2026-11-13, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
 type table, decision 15, Current Status and Roadmap (new Phase 4) reconciled against
 `fix/loopback-reason-and-seeded-generator`, which adds `SeededGenerator` to the test-support
 product and corrects the stated reason for the leading-zero rule. The "Tested on macOS arm64"

@@ -4,6 +4,14 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0-beta.1] - 2026-11-13
+
+The candidate for 1.0.0, after a readiness review: CI on Linux and macOS, an independent security
+review, an API audit, and what the three turned up. It is a prerelease, so SwiftPM never selects it
+for `.upToNextMinor(from: "0.2.1")`; a package asks for it with `exact: "1.0.0-beta.1"`. What 1.x
+will and will not change is in the *What 1.x promises* article. The criterion for 1.0.0 is that
+the adopters that move to this beta report nothing that needs a source change to the package.
+
 ### Breaking — source, for callers of an earlier release
 Every adopter pins `.upToNextMinor(from: "0.2.1")` and receives none of this until it edits its
 manifest. Nothing here is a change of behaviour for a server whose key is private to its user in a
@@ -367,7 +375,8 @@ view and SwiftMCPClient, written once. Nothing has adopted it yet.
   script it replaced, with `cp`, is `0644` and will be refused until the next renewal
   rewrites it or it is `chmod 600`ed.
 
-[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.1...HEAD
+[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0-beta.1...HEAD
+[1.0.0-beta.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.1...1.0.0-beta.1
 [0.2.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/jpurnell/SwiftTLSKit/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/jpurnell/SwiftTLSKit/releases/tag/0.1.0

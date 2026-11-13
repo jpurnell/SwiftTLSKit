@@ -43,8 +43,8 @@ written, tested and corrected in one place.
   on Linux (x86_64 and arm64; Swift 6.2 and latest) by CI since 2026-11-11.
 - **Products:** `SwiftTLSKit` (the library) and `SwiftTLSKitTestSupport` (for consumers' test
   targets).
-- **Dependencies of `SwiftTLSKit`:** swift-nio 2.102.0+ (`NIOCore`, `NIOConcurrencyHelpers`,
-  `NIOTLS`), swift-nio-ssl 2.37.4+ (`NIOSSL`), swift-crypto 3.0.0..<5.0.0 (`Crypto`, for
+- **Dependencies of `SwiftTLSKit`:** swift-nio 2.105.0+ (`NIOCore`, `NIOConcurrencyHelpers`,
+  `NIOTLS`), swift-nio-ssl 2.37.6+ (`NIOSSL`), swift-crypto 3.0.0..<5.0.0 (`Crypto`, for
   SHA-256).
 - **Dependencies of `SwiftTLSKitTestSupport` only:** swift-certificates, swift-asn1. They were
   test-only until the test-support product; the library target still must not import them.

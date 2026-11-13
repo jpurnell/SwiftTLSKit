@@ -4,6 +4,14 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **The minimum versions of the NIO dependencies are raised:** swift-nio 2.102.0 to 2.105.0, and
+  swift-nio-ssl 2.37.4 to 2.37.6. They remain minimums (`from:`), not pins: anything newer within
+  the major still resolves. They are the versions the lockfile and CI now run, so the lowest
+  version a consumer can resolve is one the full suite, including the handshake tests behind
+  `ClientHandshakeFailure`, has been run against. A package whose own graph resolves either below
+  the new minimum will be moved up by the next `swift package update`.
+
 ## [1.0.0-beta.1] - 2026-11-13
 
 The candidate for 1.0.0, after a readiness review: CI on Linux and macOS, an independent security

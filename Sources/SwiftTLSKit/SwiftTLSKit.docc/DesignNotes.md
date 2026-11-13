@@ -179,13 +179,31 @@ SHA-256, NIOSSL exposes no digest, and a hand-written one has no place in a TLS 
 swift-crypto is Apple's, is CryptoKit on Apple platforms, and is already resolved by every
 planned adopter.
 
-### Subject names come from an underscored NIOSSL API
+### Subject names are read from the DER, by this package
 
-``CertificateSummary/subjectAlternativeNames`` is read with
-`NIOSSLCertificate._subjectAlternativeNames()`, which NIOSSL marks as not yet stable. It is
-the only way to read them without adding a certificate-parsing dependency to the library
-target. The common name is not reported at all: NIOSSL keeps it internal, and hostname
-verification ignores it whenever alternative names are present.
+``CertificateSummary/subjectAlternativeNames`` was first read with
+`NIOSSLCertificate._subjectAlternativeNames()`, which NIOSSL marks as not yet stable: a NIOSSL
+release could remove it, and the failure would have landed as a compile error in every adopter's
+build rather than here. The other ways to read them were to add swift-certificates to the
+library target, which this package does not do (it would be built by every consumer, where today
+it is only resolved), or to stop reporting the names.
+
+Instead `NIOSSLCertificate.toDERBytes()`, which is stable, is walked by a small reader
+(`DERSubjectAlternativeNames`) that finds the subject alternative names extension and returns
+the DNS names and addresses. It has no recursion, checks every length against the bytes that
+remain, and returns no names, never an error, for anything it cannot read: the certificate was
+already accepted by BoringSSL, and the output is for a log line. Its tests compare it with
+swift-certificates, which is neither this reader nor NIOSSL.
+
+Two decisions came with it. A DNS name holding anything but printable ASCII — a control
+character, a space, a byte above 0x7e — is left out, because the summary is logged and such a
+name can forge or hide a line (an embedded NUL is the old way to make a certificate for
+`good.test` read as `good.test\0evil.test`). And IPv6 addresses are written as RFC 5952 writes
+them (`::1`), where the underscored-API version wrote eight groups (`0:0:0:0:0:0:0:1`); that is
+the one visible change.
+
+The common name is not reported at all: NIOSSL keeps it internal, and hostname verification
+ignores it whenever alternative names are present.
 
 ### Key mismatch is detected by building a context
 

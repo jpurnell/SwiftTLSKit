@@ -10,6 +10,10 @@ public struct CertificateSummary: Sendable, Hashable {
     /// The DNS names and IP addresses in the certificate's subject alternative names, in the
     /// order the certificate lists them.
     ///
+    /// Written as RFC 5952 writes an IPv6 address (`::1`). A DNS name that is empty or holds
+    /// anything but printable ASCII is left out, so that a name cannot forge or hide a line in the
+    /// log this is printed to.
+    ///
     /// The common name is not included. Hostname verification ignores it when alternative
     /// names are present, so it says nothing about which names a client will accept.
     public let subjectAlternativeNames: [String]
@@ -35,32 +39,12 @@ public struct CertificateSummary: Sendable, Hashable {
     /// - Parameter certificate: The certificate.
     /// - Throws: Whatever NIOSSL throws if the certificate cannot be re-encoded.
     init(_ certificate: NIOSSLCertificate) throws {
-        subjectAlternativeNames = certificate._subjectAlternativeNames().compactMap(Self.name)
+        let der = try certificate.toDERBytes()
+        subjectAlternativeNames = DERSubjectAlternativeNames.names(inCertificateDER: der)
         notValidBefore = Date(timeIntervalSince1970: TimeInterval(certificate.notValidBefore))
         notValidAfter = Date(timeIntervalSince1970: TimeInterval(certificate.notValidAfter))
-        certificateSHA256 = SHA256Hex.digest(of: try certificate.toDERBytes())
+        certificateSHA256 = SHA256Hex.digest(of: der)
         publicKeySHA256 = SHA256Hex.digest(of: try certificate.extractPublicKey().toSPKIBytes())
-    }
-
-    private static let ipv4ByteCount = 4
-    private static let ipv6ByteCount = 16
-    private static let ipv6GroupByteCount = 2
-
-    /// A subject alternative name as text, or `nil` for the kinds that do not name a host.
-    private static func name(_ alternativeName: _SubjectAlternativeName) -> String? {
-        let bytes = Array(alternativeName.contents)
-        switch alternativeName.nameType {
-        case .dnsName:
-            return String(decoding: bytes, as: UTF8.self)
-        case .ipAddress where bytes.count == ipv4ByteCount:
-            return bytes.map { String($0) }.joined(separator: ".")
-        case .ipAddress where bytes.count == ipv6ByteCount:
-            return stride(from: 0, to: ipv6ByteCount, by: ipv6GroupByteCount).map { index in
-                String(UInt16(bytes[index]) << 8 | UInt16(bytes[index + 1]), radix: 16)
-            }.joined(separator: ":")
-        default:
-            return nil
-        }
     }
 }
 

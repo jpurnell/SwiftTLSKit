@@ -220,8 +220,9 @@ The reasoning for each, and where the code forced a deviation from the first des
 - ~~Not built or tested on Linux.~~ Built and tested in CI (2026-11-11). One branch is still
   unrun on Linux: see `ClientHandshakeFailure.wrongHostname(under:)` below.
 - No mutual TLS; no encrypted private keys; the key's owner is not checked, only its mode.
-- `CertificateSummary.subjectAlternativeNames` depends on NIOSSL's underscored
-  `_subjectAlternativeNames()`.
+- ~~`CertificateSummary.subjectAlternativeNames` depends on NIOSSL's underscored
+  `_subjectAlternativeNames()`.~~ Read from the certificate's DER by `DERSubjectAlternativeNames`
+  instead (unreleased, `feat/san-der-parser`).
 - `ClientHandshakeFailure.wrongHostname(under:)` has a non-Apple branch that nothing here has
   run; it states NIOSSL's documented behaviour.
 - `ClientHandshakeFailure` reads BoringSSL's packed error code from the front of NIOSSL's

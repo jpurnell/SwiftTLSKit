@@ -4,6 +4,21 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **IPv6 addresses in `CertificateSummary.subjectAlternativeNames` are written as RFC 5952
+  writes them.** `::1`, not `0:0:0:0:0:0:0:1`; `2001:db8::1`, not
+  `2001:db8:0:0:0:0:0:1`. Lowercase, no leading zeros, the longest run of zero groups shortened.
+  This is visible in a start-up log line and in anything that compares against it.
+- **A DNS name in the certificate that is empty, or holds anything but printable ASCII, is
+  left out of `subjectAlternativeNames`** (a control character, a space, a byte above 0x7e).
+  The summary is logged, and such a name can forge or hide a line.
+
+### Fixed
+- **`CertificateSummary` no longer depends on NIOSSL's underscored `_subjectAlternativeNames()`.**
+  The names are read from the certificate's DER, which `NIOSSLCertificate.toDERBytes()` returns
+  and NIOSSL supports. No dependency was added, and the `SwiftTLSKit` target still imports
+  neither X509 nor SwiftASN1. See the design notes.
+
 ### Added
 - **Continuous integration** (`.github/workflows/ci.yml`): build and test on Linux (x86_64 and
   arm64; Swift 6.2 and the newest stable toolchain) and macOS, and build both products for

@@ -35,8 +35,8 @@ written, tested and corrected in one place.
 - **Concurrency:** Swift 6 strict concurrency throughout; no `@unchecked Sendable`, no
   `nonisolated(unsafe)`
 - **Platforms:** macOS 14+, iOS 17+, tvOS 17+, visionOS 1+. Tested on macOS arm64; both
-  products built for generic iOS, tvOS and visionOS devices with `xcodebuild`. Linux is not
-  declared and has not been built.
+  products built for generic iOS, tvOS and visionOS devices with `xcodebuild`. Built and tested
+  on Linux (x86_64 and arm64; Swift 6.2 and latest) by CI since 2026-11-11.
 - **Products:** `SwiftTLSKit` (the library) and `SwiftTLSKitTestSupport` (for consumers' test
   targets).
 - **Dependencies of `SwiftTLSKit`:** swift-nio 2.102.0+ (`NIOCore`, `NIOConcurrencyHelpers`,
@@ -213,10 +213,12 @@ The reasoning for each, and where the code forced a deviation from the first des
 - [x] ~~Merge `feat/adopter-feedback`, tag 0.2.0~~ (done 2026-10-06)
 - [ ] Move the two adopters to it (each has a
   list of what it can delete in CHANGELOG.md).
-- [ ] Build and test on Linux, then declare it.
+- [x] ~~Build and test on Linux, then declare it.~~ Done 2026-11-11 (PR #4): all four Linux jobs
+  green first time, 135 tests. The plan had expected failures to fix; there were none.
 
 ### Known limits
-- Not built or tested on Linux.
+- ~~Not built or tested on Linux.~~ Built and tested in CI (2026-11-11). One branch is still
+  unrun on Linux: see `ClientHandshakeFailure.wrongHostname(under:)` below.
 - No mutual TLS; no encrypted private keys; the key's owner is not checked, only its mode.
 - `CertificateSummary.subjectAlternativeNames` depends on NIOSSL's underscored
   `_subjectAlternativeNames()`.
@@ -322,13 +324,15 @@ said otherwise, and two said otherwise the same day. Recorded as they reported i
   `NIOSSLClientHandler`: both this suite and IconquerServer's test client read
   `peerCertificate` and hash it themselves. Not asked for; noticed while writing the
   migration notes.
-- Linux: build, test, declare.
+- ~~Linux: build, test, declare.~~ Shipped 2026-11-11.
 - Client certificates (mutual TLS) on the server side.
-- A CI workflow, if the repository gains a second contributor or a self-hosted runner.
+- ~~A CI workflow, if the repository gains a second contributor or a self-hosted runner.~~
+  Shipped 2026-11-11 despite that bar: six packages now depend on this one, which is the case
+  the bar was standing in for.
 
 ---
 
-**Last Updated:** 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
+**Last Updated:** 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only; the rest of this document is not yet re-audited for 1.0 (see project/plans/upcoming/SwiftTLSKit-1.0-readiness.md). Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
 type table, decision 15, Current Status and Roadmap (new Phase 4) reconciled against
 `fix/loopback-reason-and-seeded-generator`, which adds `SeededGenerator` to the test-support
 product and corrects the stated reason for the leading-zero rule. The "Tested on macOS arm64"

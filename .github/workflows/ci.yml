@@ -1,0 +1,93 @@
+# Continuous integration: build and test on Linux (x86_64 and arm64, two toolchains), on macOS, and build
+# for the Apple device platforms the manifest declares.
+#
+# Every dependency of this package is public, so no deploy key or token is needed. (SwiftHTTPService needs one
+# only because it depends on this private repository.)
+#
+# quality-gate is not installed on the runners: it is the owner's tool, and the git hooks run it. CI builds and
+# tests; it does not replace the gate.
+#
+# First run 2026-11-11 (PR #4): all eight jobs green, 135 tests on each Linux job. A red job is fixed with a test,
+# never by skipping the job. The arm64 runner started on this private repository, so no emulation is needed.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.arch }} (${{ matrix.image }})
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.image }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # swift:6.2 is the manifest's tools-version, the oldest toolchain that must work;
+        # swift:latest is the newest stable, which finds what the next release will break.
+        include:
+          - { arch: x86_64, runner: ubuntu-latest, image: "swift:6.2" }
+          - { arch: x86_64, runner: ubuntu-latest, image: "swift:latest" }
+          - { arch: arm64, runner: ubuntu-24.04-arm, image: "swift:6.2" }
+          - { arch: arm64, runner: ubuntu-24.04-arm, image: "swift:latest" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: linux-${{ matrix.arch }}-${{ matrix.image }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: linux-${{ matrix.arch }}-${{ matrix.image }}-
+      - run: swift --version
+      - run: uname -m
+      - run: swift package resolve
+      - run: swift build --build-tests
+      - run: swift test
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Newest Xcode on the image (the manifest needs Swift 6.2)
+        run: |
+          newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          swift --version
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: macos-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: macos-
+      - run: swift package resolve
+      - run: swift build --build-tests
+      - run: swift test
+
+  apple-devices:
+    name: Build for ${{ matrix.name }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: iOS, destination: "generic/platform=iOS" }
+          - { name: tvOS, destination: "generic/platform=tvOS" }
+          - { name: visionOS, destination: "generic/platform=visionOS" }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Newest Xcode on the image
+        run: |
+          newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          xcodebuild -version
+      # Built, not run: there is no device. Both products, since the manifest declares both platforms for both.
+      - run: xcodebuild build -scheme SwiftTLSKit -destination "${{ matrix.destination }}"
+      - run: xcodebuild build -scheme SwiftTLSKitTestSupport -destination "${{ matrix.destination }}"

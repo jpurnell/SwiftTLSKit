@@ -29,6 +29,14 @@ struct BindExposureTests {
         #expect(BindExposure.classify(host: host, tlsConfigured: false) == .exposedPlaintext(host: host))
     }
 
+    @Test(
+        "Plaintext on a host with a NUL in it is exposed, however loopback its beginning looks",
+        arguments: ["127.0.0.1\u{0}.evil.com", "127.0.0.1\u{0}", "::1\u{0}x", "localhost\u{0}"])
+    func embeddedNUL(host: String) {
+        #expect(BindExposure.classify(host: host, tlsConfigured: false) == .exposedPlaintext(host: host))
+        #expect(BindExposure.classify(host: host, tlsConfigured: false).isExposedPlaintext)
+    }
+
     @Test("Only exposed plaintext is flagged")
     func isExposedPlaintext() {
         #expect(BindExposure.tls.isExposedPlaintext == false)

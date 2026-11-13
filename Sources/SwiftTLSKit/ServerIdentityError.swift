@@ -90,7 +90,7 @@ extension ServerIdentityError: CustomStringConvertible {
             return "\(path) is larger than \(limit) bytes, which no certificate chain or private key is."
         case .privateKeyPermissionsTooOpen(let path, let mode):
             return "The private key at \(path) has mode \(Self.octal(mode)), "
-                + "which lets group or others read or write it. Run: chmod 600 \(path)"
+                + "which lets group or others read or write it. Run: chmod 600 \(Self.shellQuoted(path))"
         case .emptyCertificateChain(let path):
             return "\(path) holds no certificates."
         case .invalidCertificateChain(let path):
@@ -106,6 +106,22 @@ extension ServerIdentityError: CustomStringConvertible {
         case .contextRejected(let reason):
             return "The TLS library refused this identity: \(reason)."
         }
+    }
+
+    /// `path` as one shell word, for a command an operator pastes.
+    ///
+    /// Left as it is when every character is one a shell reads literally, so an ordinary path
+    /// reads as an ordinary path. Otherwise in single quotes, which are the only quoting that
+    /// does not interpret anything; a single quote inside is written `'\''`. Without this a path
+    /// such as `/etc/ssl/a; rm -rf ~` is a command in the hint. A path that begins with `-` is an
+    /// option to `chmod` however it is quoted, so it follows `--`.
+    private static func shellQuoted(_ path: String) -> String {
+        let literal = path.unicodeScalars.allSatisfy { scalar in
+            scalar.isASCII && (scalar.properties.isAlphabetic || ("0"..."9").contains(Character(scalar))
+                || "_@%+=:,./-".unicodeScalars.contains(scalar))
+        }
+        let word = literal && !path.isEmpty ? path : "'" + path.replacing("'", with: "'\\''") + "'"
+        return path.hasPrefix("-") ? "-- " + word : word
     }
 
     /// Permission bits as `chmod` writes them: four octal digits.

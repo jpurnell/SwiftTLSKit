@@ -8,10 +8,19 @@ import Musl
 
 /// Parses IP address literals, so that "is this an address, and which one" has one answer.
 enum IPAddressLiteral {
+    /// Whether `literal` can be handed to a C function as the whole of itself.
+    ///
+    /// Swift passes a `String` to `inet_pton` as a C string, which ends at the first NUL, so
+    /// `127.0.0.1\0.example.com` would be read as `127.0.0.1`. A literal with a NUL in it is not
+    /// an address; it is text that two readers would read differently.
+    private static func isWhole(_ literal: String) -> Bool {
+        !literal.utf8.contains(0)
+    }
+
     /// The four bytes of an IPv4 literal in network order, or `nil` if `literal` is not one.
     static func ipv4Bytes(_ literal: String) -> [UInt8]? {
         var address = in_addr()
-        guard inet_pton(AF_INET, literal, &address) == 1 else { return nil }
+        guard isWhole(literal), inet_pton(AF_INET, literal, &address) == 1 else { return nil }
         let hostOrder = UInt32(bigEndian: address.s_addr)
         return [
             UInt8(truncatingIfNeeded: hostOrder >> 24),
@@ -24,7 +33,7 @@ enum IPAddressLiteral {
     /// The sixteen bytes of an IPv6 literal in network order, or `nil` if `literal` is not one.
     static func ipv6Bytes(_ literal: String) -> [UInt8]? {
         var address = in6_addr()
-        guard inet_pton(AF_INET6, literal, &address) == 1 else { return nil }
+        guard isWhole(literal), inet_pton(AF_INET6, literal, &address) == 1 else { return nil }
         #if canImport(Darwin)
         let octets = address.__u6_addr.__u6_addr8
         #else

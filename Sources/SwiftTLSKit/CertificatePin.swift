@@ -57,12 +57,25 @@ public struct CertificatePin: Sendable, Hashable {
 
     private static let digestByteCount = 32
     private static let hexDigitCount = 64
+    private static let separator: Character = ":"
+    private static let digitsPerByte = 2
+
+    private static func isHexDigest(_ text: String) -> Bool {
+        text.count == hexDigitCount && text.allSatisfy { $0.isASCII && $0.isHexDigit }
+    }
+
+    /// `text` without the colons, if there is one between each pair of digits and nowhere else —
+    /// the way `openssl` prints a digest — and `nil` if there is a colon anywhere else.
+    private static func removingByteSeparators(from text: String) -> String? {
+        let pairs = text.split(separator: separator, omittingEmptySubsequences: false)
+        guard pairs.count == digestByteCount, pairs.allSatisfy({ $0.count == digitsPerByte }) else { return nil }
+        return pairs.joined()
+    }
 
     private static func normalise(_ text: String) throws(ClientTrustError) -> String {
-        let hex = text.replacing(":", with: "").lowercased()
-        if hex.count == hexDigitCount, hex.allSatisfy(\.isHexDigit), hex.allSatisfy(\.isASCII) {
-            return hex
-        }
+        let hex = text.lowercased()
+        if isHexDigest(hex) { return hex }
+        if let unseparated = removingByteSeparators(from: hex), isHexDigest(unseparated) { return unseparated }
         if let decoded = Data(base64Encoded: text), decoded.count == digestByteCount {
             return SHA256Hex.encode(Array(decoded))
         }

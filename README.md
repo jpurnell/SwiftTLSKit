@@ -9,9 +9,9 @@ no event loops, no listener framework.
 
 - **Half an identity is an error, never plaintext.** A certificate path without a key path
   throws. The code this replaces served plaintext in that case, silently.
-- **An identity is judged before it is served**: missing files, a world-readable key, a key
-  that does not match, an expired leaf — each a typed error naming the path, never the
-  contents.
+- **An identity is judged before it is served**: missing files, a key others can read or
+  replace (its mode, its owner, a directory above it that others can write), a key that does
+  not match, an expired leaf — each a typed error naming the path, never the contents.
 - **A renewed certificate does not need a restart.**
 - **Client verification cannot be switched off.** There is no "trust anything" case.
 
@@ -41,15 +41,28 @@ targets: [
 ]
 ```
 
-The repository is private. It resolves over **HTTPS**, as above, with whatever credentials
-git already has for github.com — a credential helper, `gh auth setup-git`, or a `.netrc` —
-and equally over **SSH** as `git@github.com:jpurnell/SwiftTLSKit.git`. Both adopters use the
-HTTPS form. Use one form throughout a dependency graph, so that the package is not named by
-two URLs.
+The repository is public and resolves over **HTTPS**, as above, with no credentials. It also
+resolves over **SSH** as `git@github.com:jpurnell/SwiftTLSKit.git`; the existing adopters use
+whichever form they already had. Use one form throughout a dependency graph, so that the package
+is not named by two URLs.
 
 `.upToNextMinor`, not `from:`. Before 1.0 a minor version may break source — 0.2.0
 did, see the CHANGELOG — and `from: "0.1.0"` means "anything below 1.0.0", so it
 takes such a release at the next `swift package update`.
+
+### The 1.0 beta
+
+`1.0.0-beta.1` is the candidate for 1.0.0. SwiftPM never selects a prerelease for a range such
+as `.upToNextMinor(from: "0.2.1")`, so a package pinned that way stays on 0.2.1 until it asks:
+
+```swift
+.package(url: "https://github.com/jpurnell/SwiftTLSKit.git", exact: "1.0.0-beta.1"),
+```
+
+It has source-breaking changes from 0.2.1, all listed at the top of the CHANGELOG, and it refuses
+a private key that 0.2.1 accepted if another user owns it or can replace it (a directory above
+it that group or others can write). Read *What 1.x promises* in the documentation for what will
+and will not change between the beta and 1.0.0.
 
 Two products:
 

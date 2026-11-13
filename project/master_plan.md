@@ -13,8 +13,12 @@ server takes a renewed certificate, and what a client is prepared to trust — s
 written, tested and corrected in one place.
 
 ### Target Users
-- The owner's NIO servers: SwiftMCPServer, VaultMCP's web view, IconquerServer, IconquerTournament.
-- The owner's NIO clients: IconquerClient, SwiftMCPClient.
+- The owner's NIO servers and clients. Seven packages in the owner's workspace depend on 0.2.1
+  (checked 2026-11-13, each `.upToNextMinor(from: "0.2.1")`): FleetWatch, FleetWatch-infoplist,
+  ijs-dashboard-server, SwiftHTTPService, SwiftPushHub, SwiftDiagnosticsHub, SwiftPenTest.
+- Named in the original plan and **not checked on 2026-11-13** (not in the workspace):
+  SwiftMCPServer, VaultMCP's web view, IconquerServer, IconquerTournament, IconquerClient,
+  SwiftMCPClient. IconquerServer and IconquerClient adopted 0.1.0 on 2026-10-06.
 
 ### Key Differentiators
 - **A half-configured identity is an error, never plaintext.** The copies this replaces built
@@ -44,7 +48,11 @@ written, tested and corrected in one place.
   SHA-256).
 - **Dependencies of `SwiftTLSKitTestSupport` only:** swift-certificates, swift-asn1. They were
   test-only until the test-support product; the library target still must not import them.
-  This package's own tests add `NIOPosix`.
+  This package's own tests add `NIOPosix` and `NIOEmbedded`.
+- **Public interface and NIO:** the NIO types left in it are `ChannelPipeline.SynchronousOperations`,
+  `any ChannelHandler`, and NIOSSL's `TLSConfiguration` in `ClientTrust.makeTLSConfiguration`.
+  A move to NIO 3 or NIOSSL 3 would be package 2.0 (`StabilityPolicy.md`).
+- **Repository:** public since 2026-11-13, so that CI runs on GitHub's hosted runners.
 - **No dependency on any other package of the owner's, and no logging dependency.** The first
   is why the test-support product ships its own seeded generator (`SeededGenerator`) rather
   than using SwiftDeterminism. (Until 2026-10-09 this read "the suite carries its own": the
@@ -57,7 +65,9 @@ Sources/SwiftTLSKit/
 ├── ServerIdentity.swift            the two paths; resolve(…), load(now:), in-memory validation (package)
 ├── IncompleteServerIdentity.swift  the one thing resolve throws
 ├── ServerIdentityError.swift       every refusal load makes, typed, with its message
-├── PEMFile.swift                   open / fstat / read, with the permission check (internal)
+├── PEMFile.swift                   open / fstat / read, with the key's mode, owner, ACL (macOS)
+│                                   and ancestor-directory checks (internal)
+├── DERSubjectAlternativeNames.swift  reads DNS names and addresses from a certificate's DER (internal)
 ├── PrivateKeyFileDigest.swift      what the key file held, comparable and unprintable (internal)
 ├── CertificateSummary.swift        names, validity, SHA-256 fingerprints
 ├── ServerTLSContext.swift          MinimumTLSVersion, ServerTLSOptions, ServerTLSContext
@@ -72,7 +82,8 @@ Sources/SwiftTLSKit/
 ├── BindExposure.swift              TLS / loopback plaintext / exposed plaintext
 ├── Loopback.swift                  isLoopback(host:), the one definition
 ├── IPAddressLiteral.swift          IPv4 / IPv6 literal parsing (internal)
-└── SwiftTLSKit.docc/               landing page and four articles
+└── SwiftTLSKit.docc/               landing page and five articles (Serving, Reloading, Client,
+                                    DesignNotes, StabilityPolicy)
 
 Sources/SwiftTLSKitTestSupport/
 ├── TestAuthority.swift             an authority, and the leaves it issues
@@ -90,16 +101,16 @@ Sources/SwiftTLSKitTestSupport/
 | `ServerIdentity` | Names a PEM certificate chain and private key; `resolve` turns two optionals into nil, an identity, or a thrown `IncompleteServerIdentity` |
 | `IncompleteServerIdentity` | Half a pair: which half was given, its path, and a message that can name the consumer's own settings |
 | `LoadedServerIdentity` | An identity read from disk and found fit to serve; the only input a server context accepts |
-| `ServerIdentityError` | Typed refusals from loading: unreadable, not a regular file, too large, key permissions, empty or damaged chain, damaged key, key mismatch, expired, not yet valid |
-| `CertificateSummary` | Leaf subject alternative names, validity, certificate and public-key SHA-256 |
+| `ServerIdentityError` | Typed refusals from loading: unreadable, not a regular file, too large, key permissions, key owned by another user, key in a writable directory, key with an ACL (macOS), empty or damaged chain, damaged key, key mismatch, expired, not yet valid |
+| `CertificateSummary` | Leaf subject alternative names (DNS and addresses; IPv6 as RFC 5952), validity, certificate and public-key SHA-256 |
 | `ServerTLSOptions`, `MinimumTLSVersion` | TLS 1.2 minimum (or 1.3 only), ALPN list |
-| `ServerTLSContext` | The server `NIOSSLContext` and `addHandler(to:)` |
+| `ServerTLSContext` | The server context and `makeHandler()` / `addHandler(to:)`. The `NIOSSLContext` is `package`-level |
 | `ReloadableServerTLS`, `ReloadMode`, `ReloadOutcome` | Owns the current context; `reload()`, `reloadIfChanged()` (chain and key file), `reloadOnEach(_:mode:report:)` |
 | `SuggestedLogLevel` | What `ReloadOutcome.suggestedLogLevel` returns: info, notice, warning |
 | `ClientTrust`, `CertificateSource` | System roots, additional roots, only roots, or pinned — never "trust anything" |
 | `CertificatePin` | SHA-256 of a certificate or of its SubjectPublicKeyInfo |
 | `ClientTLSContext` | The client context; `addHandlers(to:serverHostname:)` with SNI and hostname verification |
-| `ClientTrustError` | Typed client refusals, including `pinMismatch` |
+| `ClientTrustError` | Typed client refusals, including `pinMismatch` and `noPeerCertificate` |
 | `ClientHandshakeFailure` | Classifies a failed client handshake: not trusted, hostname mismatch, pin mismatch, peer does not speak TLS, no shared version, other |
 | `BindExposure` | Classifies a bind host and TLS flag as TLS, loopback plaintext, or exposed plaintext |
 | `isLoopback(host:)` | The one definition of loopback, for a bind host or a dial host |
@@ -120,7 +131,7 @@ Server
   LoadedServerIdentity ─▶ ServerTLSContext ─▶ ReloadableServerTLS.current
                                                    │ addHandler(to:)   per connection
                                                    ▼
-                                             NIOSSLServerHandler
+                                             a TLS handler (any ChannelHandler)
   reload() / reloadIfChanged() ─▶ load + build ─▶ swap, or keep the old one and return the error
   reloadOnEach(triggers, mode:)  ─▶ one of the two per trigger; outcome.suggestedLogLevel
 
@@ -154,7 +165,10 @@ Tests (a consumer's, and this package's)
    synchronous.
 7. **No file watcher.** Triggers are explicit; see the Reloading article for why.
 8. **A pin is an additional check after the handshake**, because NIOSSL's verification
-   callback replaces chain validation rather than adding to it.
+   callback replaces chain validation rather than adding to it. (NIOSSL also has an
+   additional-verification callback that runs before the handshake completes, which would close
+   the window; it is `_`-prefixed, the same fragility decision 20 avoids. The window leaks
+   nothing: the handler holds every write and releases no read until the pin has matched.)
 9. **Test certificates are generated when the tests run.** No private key file is checked in.
 10. **An error type is exactly as wide as what throws it.** `resolve` throws
     `IncompleteServerIdentity`; `ServerIdentityError` holds only what loading can refuse.
@@ -175,6 +189,21 @@ Tests (a consumer's, and this package's)
     `BoringSSLInternalError` keeps both private, and cannot be constructed outside NIOSSL) and
     BoringSSL renumbers reasons. The name is read by position (the fifth `:` field, its first
     word, compared whole), not searched for. Where the two disagree the answer is `other`.
+17. **A private key is refused if somebody else can replace it, not only if somebody else can
+    read it.** Owner, writable ancestor directory, and (macOS) ACL, each typed. Chosen over a
+    documented limit because a key at `0600` that another user can swap serves their identity
+    at the next reload. It can refuse a server that used to start; the message says how to fix it.
+18. **Enumerations are closed.** A new case is a major version; a new capability (client
+    certificates, encrypted keys) arrives as a new type. The last cases were added before
+    1.0. The text of a `description` is not API.
+19. **The public interface names as little of NIO as it can.** NIOSSL's context and parsed
+    certificates are `package`-level; handlers are `any ChannelHandler`. `makeHandlers` is
+    `package`, since a pinned trust has two handlers and a caller who added one lost the pin.
+20. **Certificate names are read from the DER, here, not from NIOSSL's underscored API and not
+    with swift-certificates in the library target.** A bounded reader with no recursion; its
+    tests compare it with swift-certificates. A name that cannot be printed safely is left out.
+21. **CI builds and tests; the quality gate stays a local hook.** `quality-gate` is the owner's
+    tool and is not installed on runners.
 
 The reasoning for each, and where the code forced a deviation from the first design, is in
 `Sources/SwiftTLSKit/SwiftTLSKit.docc/DesignNotes.md`.
@@ -206,27 +235,48 @@ The reasoning for each, and where the code forced a deviation from the first des
   - [x] `SwiftTLSKitTestSupport`
   - [x] tvOS 17, visionOS 1
   - [x] `ReloadOutcome.suggestedLogLevel`
-- [x] After 0.2.0, on `fix/loopback-reason-and-seeded-generator` — unreleased, intended 0.2.1:
+- [x] **0.2.1**, 2026-10-09:
   - [x] The stated reason for refusing a leading-zero octet corrected (`inet_aton` is the
     octal reader, not `getaddrinfo`); the rule itself pinned by a test that names no resolver
   - [x] `SeededGenerator` in `SwiftTLSKitTestSupport`
+- [x] **Readiness for 1.0, 2026-11-11 to 2026-11-13** (`project/plans/upcoming/SwiftTLSKit-1.0-readiness.md`):
+  - [x] CI on Linux (x86_64, arm64; Swift 6.2 and latest), macOS, and iOS/tvOS/visionOS device
+    builds (PR #4). Linux needed no source change.
+  - [x] Subject alternative names read from the DER, not NIOSSL's underscored API (PR #5)
+  - [x] `ClientHandshakeFailure` reads the reason name as well as the number (PR #6)
+  - [x] Independent security review: a fail-open in `isLoopback` for a host with a NUL byte,
+    fixed, and four more (PR #7; `security_review_1.0.md`)
+  - [x] A key is refused for owner, writable ancestor directory, or an ACL; `noPeerCertificate`;
+    the NIO surface narrowed; the enums closed (PR #8; `api_audit_1.0.md`)
+  - [x] `StabilityPolicy.md`; this reconciliation
+  - [ ] Tag `1.0.0-beta.1`
 
 ### What's Next
-- [ ] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — two
-  adopted 0.1.0 on 2026-10-06 and reported the nine items above.
+- [x] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — seven
+  packages depend on 0.2.1 (see Target Users).
 - [x] ~~Merge `feat/adopter-feedback`, tag 0.2.0~~ (done 2026-10-06)
-- [ ] Move the two adopters to it (each has a
-  list of what it can delete in CHANGELOG.md).
+- [x] ~~Move the two adopters to it~~ — every adopter found on 2026-11-13 is on 0.2.1.
+- [ ] Tag `1.0.0-beta.1`. Adopters do not receive it until they ask for it: a prerelease is never
+  selected by `.upToNextMinor(from: "0.2.1")`.
+- [ ] Move the adopters to the beta, one at a time, and record what each finds. **The criterion
+  for 1.0.0** is that every adopter that has moved reports nothing that needs a source change
+  to this package, and the security review's decisions still hold. Findings that would need a
+  new case in a closed enum are the reason to keep the beta open.
 - [x] ~~Build and test on Linux, then declare it.~~ Done 2026-11-11 (PR #4): all four Linux jobs
   green first time, 135 tests. The plan had expected failures to fix; there were none.
 
 ### Known limits
 - ~~Not built or tested on Linux.~~ Built and tested in CI (2026-11-11). One branch is still
   unrun on Linux: see `ClientHandshakeFailure.wrongHostname(under:)` below.
-- No mutual TLS; no encrypted private keys; the key's owner is not checked, only its mode.
+- No mutual TLS; no encrypted private keys.
+- ~~The key's owner is not checked, only its mode.~~ Checked, with every ancestor directory's
+  write bits and (macOS) an ACL. **Not** checked: who *owns* those directories (a directory owned
+  by another user and not writable by anyone else still lets its owner replace the key); the
+  certificate chain at all (it is public). A leaf written without its intermediates is served
+  until the next reload; the remedy is to rename a finished file into place, as certbot does.
 - ~~`CertificateSummary.subjectAlternativeNames` depends on NIOSSL's underscored
   `_subjectAlternativeNames()`.~~ Read from the certificate's DER by `DERSubjectAlternativeNames`
-  instead (unreleased, `feat/san-der-parser`).
+  instead (PR #5, in 1.0.0-beta.1).
 - ~~`ClientHandshakeFailure.wrongHostname(under:)` has a non-Apple branch that nothing here has
   run.~~ Run on Linux in CI since 2026-11-11: the wrong-hostname test expects
   `.hostnameMismatch` there, and passes on all four Linux jobs.
@@ -238,9 +288,10 @@ The reasoning for each, and where the code forced a deviation from the first des
   SwiftPM declares dependencies per package. It does not build or link them.
 - This suite's test keys are reproducible from a seed in the repository (the gate requires a
   seeded generator in tests). They are trusted by nothing outside a test.
-- No CI workflow. The repository is private, the siblings' workflow needs repository secrets
-  that have not been set here, and hosted macOS minutes are billed on private repositories.
-  The local hooks run the full gate on every commit and push.
+- ~~No CI workflow.~~ CI builds and tests on GitHub (since 2026-11-11). It does not run
+  `quality-gate`, which is the owner's tool; the local hooks run the full gate on every commit
+  and push. The repository is public (2026-11-13) so that hosted runners are available.
+- Pinning is judged after the handshake, not during it (decision 8).
 
 ---
 
@@ -280,9 +331,12 @@ This principle is operationalized in the **Adversarial Review** step of `design_
 - [x] ~~Server identity, server context, reload, client trust, bind exposure~~ — shipped in
   0.1.0, 2026-10-06.
 
-### Phase 2: Adoption — two of six started
-In this order. Each replaces a hand-written copy. (This heading read "none started" when
-0.1.0 was tagged.)
+### Phase 2: Adoption — seven packages on 0.2.1 (checked 2026-11-13)
+Each replaces a hand-written copy. (This heading read "none started" when 0.1.0 was tagged,
+and "two of six started" until 2026-11-13, when the manifests were read.) Seven packages in the
+workspace are on 0.2.1: FleetWatch, FleetWatch-infoplist, ijs-dashboard-server, SwiftHTTPService,
+SwiftPushHub, SwiftDiagnosticsHub, SwiftPenTest. The items below are the packages named in the
+original plan, **not checked** on that date:
 - [ ] IconquerServer — started: on 0.1.0 on `feat/tls` (PR #4), 2026-10-06. Open until it is
   on 0.2.0, where it can delete the workarounds it wrote for 0.1.0.
 - [ ] IconquerClient — started: on 0.1.0 on `feat/wss` (PR #2), 2026-10-06. Likewise.
@@ -293,9 +347,12 @@ In this order. Each replaces a hand-written copy. (This heading read "none start
 - [ ] SwiftMCPClient — `ServerTrust` maps onto `ClientTrust` case for case; its AsyncHTTPClient
   path takes `makeTLSConfiguration()`
 
-Before the first server adopts it: confirm on the deployment host that every deployed
-`privkey.pem` is mode `0600`. `renew-certs.sh` installs them that way; a copy left by the
-script it replaced would be `0644` and is refused.
+Before a server moves to the beta: confirm on the deployment host that every deployed
+`privkey.pem` is mode `0600`, **owned by the user the service runs as (or root)**, and in a
+directory that only its owner can write (the key's own directory and every one above it).
+`renew-certs.sh` installs them `0600`; a copy left by the script it replaced would be `0644`
+and is refused. The owner and directory checks are new in the beta and can refuse a key that
+loaded before.
 
 ### Phase 3: What the first adopters found — done on `feat/adopter-feedback`, unreleased
 The plan for 0.1.0 did not have this phase. It assumed the API was right until an adopter
@@ -326,7 +383,27 @@ said otherwise, and two said otherwise the same day. Recorded as they reported i
   This reverses a decision recorded at 0.2.0 ("a consumer brings its own generator"). It was
   made before anyone had brought one; all three brought the same one.
 
+### Phase 5: 1.0 readiness — done 2026-11-13, beta pending
+Planned in `project/plans/upcoming/SwiftTLSKit-1.0-readiness.md` against five gaps an outside
+review named. All five shipped (Linux and CI; the underscored SAN API; the API audit and
+freeze; the security review; documentation), and the review found more than the plan named:
+- [x] ~~Linux: build, test, declare~~ — green first time.
+- [x] ~~CI~~ — see Known limits for the one thing it does not run.
+- [x] ~~`_subjectAlternativeNames()`~~ — replaced by a DER reader, which also fixed IPv6 text and
+  made unprintable names safe to log.
+- [x] ~~Underscored/string-parsed BoringSSL errors~~ — not in the named five; found while
+  investigating the fourth. No typed path exists; both signals are now read.
+- [x] ~~API audit and freeze~~ — enums closed; NIO surface narrowed.
+- [x] ~~Security review~~ — one high-severity fail-open (a NUL byte in a host), found by a
+  reviewer, not by the 0.2.1 tests, which had pinned every other spelling of loopback. The
+  lesson recorded in the review: a table of known-bad spellings is not a review of the parser.
+- [x] ~~The plan assumed adopters would auto-resolve a breaking 0.3.0~~ — wrong; every adopter
+  pins `.upToNextMinor`. Recorded in the proposal where it was corrected.
+- [ ] `1.0.0-beta.1`, then adopters, then `1.0.0`.
+
 ### Future
+- Pinning during the handshake, if NIOSSL stabilises its additional-verification callback.
+- Checking who owns the directories above a key.
 - A peer-certificate fingerprint after a client handshake, without naming
   `NIOSSLClientHandler`: both this suite and IconquerServer's test client read
   `peerCertificate` and hash it themselves. Not asked for; noticed while writing the
@@ -339,7 +416,7 @@ said otherwise, and two said otherwise the same day. Recorded as they reported i
 
 ---
 
-**Last Updated:** 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only; the rest of this document is not yet re-audited for 1.0 (see project/plans/upcoming/SwiftTLSKit-1.0-readiness.md). Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
+**Last Updated:** 2026-11-13, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
 type table, decision 15, Current Status and Roadmap (new Phase 4) reconciled against
 `fix/loopback-reason-and-seeded-generator`, which adds `SeededGenerator` to the test-support
 product and corrects the stated reason for the leading-zero rule. The "Tested on macOS arm64"

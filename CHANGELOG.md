@@ -14,6 +14,12 @@ All notable changes to SwiftTLSKit will be documented in this file.
   The summary is logged, and such a name can forge or hide a line.
 
 ### Fixed
+- **`ClientHandshakeFailure` reads BoringSSL's reason name as well as its packed number.**
+  NIOSSL has no typed way to read either, and BoringSSL renumbers reasons when it regenerates
+  its tables, so a number could come to name a different reason with no compile error. The two
+  are read from the same description; where they disagree, or the name is one this package does
+  not know, the result is `.other(description)` rather than a wrong class. Nothing changes for
+  an error NIOSSL produces today: every classification the handshake tests exercise is unchanged.
 - **`CertificateSummary` no longer depends on NIOSSL's underscored `_subjectAlternativeNames()`.**
   The names are read from the certificate's DER, which `NIOSSLCertificate.toDERBytes()` returns
   and NIOSSL supports. No dependency was added, and the `SwiftTLSKit` target still imports

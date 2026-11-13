@@ -13,6 +13,25 @@ All notable changes to SwiftTLSKit will be documented in this file.
   left out of `subjectAlternativeNames`** (a control character, a space, a byte above 0x7e).
   The summary is logged, and such a name can forge or hide a line.
 
+### Fixed — security
+Found by an independent pre-release review; the record, with what was reproduced and what was
+not, is `project/plans/upcoming/security_review_1.0.md`.
+
+- **`isLoopback(host:)` called a host with a NUL byte loopback.** `127.0.0.1` + NUL + a name was
+  read by `inet_pton` as `127.0.0.1`, because Swift hands it a C string that ends at the NUL, and
+  `BindExposure.classify` followed with `.loopbackPlaintext`: a fail-open against the package's
+  own rule that doubt resolves to "exposed". A host with a NUL is now not loopback, and
+  `IPAddressLiteral` refuses it for every caller.
+- **A key or certificate path with a NUL byte was truncated at the NUL** and the file before it
+  was read, while errors and logs named the whole string. It is now `.unreadable`.
+- **The `chmod 600 PATH` hint is shell-quoted when the path needs it.** A path such as
+  `/etc/ssl/a; rm -rf ~` was a command in a hint an operator pastes. Ordinary paths read as
+  before; one beginning with `-` follows `--`.
+- **A pin's colons must separate bytes, as `openssl` prints them.** `::` + 64 hex digits used to
+  be accepted. It is not a security bypass (the digest is still 64 hex digits) and is stricter
+  than before.
+- The key file is opened with `O_NOCTTY`.
+
 ### Fixed
 - **`ClientHandshakeFailure` reads BoringSSL's reason name as well as its packed number.**
   NIOSSL has no typed way to read either, and BoringSSL renumbers reasons when it regenerates
@@ -26,6 +45,9 @@ All notable changes to SwiftTLSKit will be documented in this file.
   neither X509 nor SwiftASN1. See the design notes.
 
 ### Added
+- Tests that were missing: pin digests against OpenSSL's (fixed certificate, constants computed
+  by OpenSSL 4.1.0); an unopenable key is `.unreadable` for every user, root included (the
+  existing unreadable-file test is skipped for root, which is what a CI container is).
 - **Continuous integration** (`.github/workflows/ci.yml`): build and test on Linux (x86_64 and
   arm64; Swift 6.2 and the newest stable toolchain) and macOS, and build both products for
   generic iOS, tvOS and visionOS devices. First run 2026-11-11: all green, 135 tests on every

@@ -24,7 +24,9 @@
 ///
 /// - **Names are not resolved.** A name other than `localhost` is not loopback even if it
 ///   resolves to this machine today; that is a fact about a resolver's configuration, and it
-///   can change without this code being told. `localhost.` with a trailing dot is such a name.
+///   can change without this code being told. `localhost.` with a trailing dot is such a name,
+///   and so is `foo.localhost`: RFC 6761 §6.3 lets a resolver send every name under
+///   `localhost` to the loopback address, and this does not assume that one does.
 /// - **The wildcard is not loopback.** `0.0.0.0` and `::` bind every interface.
 /// - **A spelling two parsers read differently is not loopback.** An octet with a leading
 ///   zero is decimal to one parser and octal to another, so the same text is two addresses:
@@ -34,8 +36,10 @@
 ///   and can differ on another; that they disagree is the reason for the rule. An octet with
 ///   a leading zero, a shortened address such as `127.1`, and a zone identifier such as
 ///   `::1%lo0` are all refused.
-/// - **The text must be a host.** No port, no surrounding space, and square brackets only
-///   around an IPv6 literal.
+/// - **The text must be a host, all of it.** A NUL byte anywhere makes it not one — `127.0.0.1`
+///   followed by a NUL and a name is two readings of the same text, one that stops at the NUL
+///   and one that does not — as does any other control character. No port, no surrounding
+///   space, and square brackets only around an IPv6 literal.
 ///
 /// - Parameter host: A host as configured or as parsed from a URL: a name, an IPv4 literal, or
 ///   an IPv6 literal with or without square brackets.

@@ -100,6 +100,36 @@ struct LoopbackTests {
         #expect(isLoopback(host: host) == false)
     }
 
+    /// `inet_pton` takes a C string, and Swift hands it the `String` up to the first NUL. Without
+    /// a check, `127.0.0.1\0.example.com` is read as `127.0.0.1` — a host that a later, NUL-aware
+    /// step (a URL, a resolver, a log) reads as something else — and is called loopback.
+    @Test(
+        "A host with a NUL in it is not loopback, whatever comes before the NUL",
+        arguments: [
+            "127.0.0.1\u{0}.example.com", "127.0.0.1\u{0}", "\u{0}127.0.0.1", "::1\u{0}x", "[::1\u{0}]",
+            "::ffff:127.0.0.1\u{0}.evil", "localhost\u{0}", "local\u{0}host", "\u{0}",
+        ])
+    func embeddedNUL(host: String) {
+        #expect(isLoopback(host: host) == false)
+    }
+
+    @Test(
+        "Other control characters and non-ASCII are not loopback either",
+        arguments: [
+            "127.0.0.1\r", "127.0.0.1\t", "127.0.0.1\u{1b}", "\u{7f}127.0.0.1", "127.0.0.1\u{85}",
+            "localhost\u{200b}", "127\u{FF0E}0.0.1", "\u{FF11}27.0.0.1",
+        ])
+    func controlAndNonASCII(host: String) {
+        #expect(isLoopback(host: host) == false)
+    }
+
+    /// The names that are over-strict against RFC 6761 §6.3 — which makes `*.localhost` loopback —
+    /// are pinned, so that widening the rule is a decision and not an accident. They fail closed.
+    @Test("Names under localhost, and localhost with a trailing dot, are not loopback", arguments: ["foo.localhost", "localhost.", ".localhost"])
+    func overStrictNames(host: String) {
+        #expect(isLoopback(host: host) == false)
+    }
+
     @Test("A bind host and a dial host get the same answer", arguments: ["127.0.0.1", "::1", "localhost", "0.0.0.0", "roseclub.org"])
     func agreesWithBindExposure(host: String) {
         #expect(

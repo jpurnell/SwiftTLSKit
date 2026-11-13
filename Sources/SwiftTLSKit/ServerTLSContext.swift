@@ -90,6 +90,10 @@ public struct ServerTLSContext: Sendable {
         identity: LoadedServerIdentity,
         options: ServerTLSOptions = ServerTLSOptions()
     ) throws(ServerIdentityError) {
+        // `certificateVerification` is left at the server default, `.none`. That setting is about
+        // whether the server asks a *client* for a certificate, which this package does not
+        // support (no mutual TLS); it is not a verification this package turns off, and nothing
+        // here writes it.
         var configuration = TLSConfiguration.makeServerConfiguration(
             certificateChain: identity.certificateChain.map { .certificate($0) },
             privateKey: .privateKey(identity.privateKey))

@@ -30,9 +30,16 @@ enum PEMFile {
     /// - Returns: The file's bytes.
     /// - Throws: ``ServerIdentityError`` naming `path` and the reason.
     static func read(path: String, mustBeOwnerOnly: Bool) throws(ServerIdentityError) -> [UInt8] {
+        // `open` takes a C string, which ends at the first NUL: `key.pem` + NUL + anything would
+        // open `key.pem`, and every error and log line would name a path that was not read.
+        guard !path.utf8.contains(0) else {
+            throw .unreadable(path: path, reason: "the path contains a NUL byte")
+        }
         // O_NONBLOCK so that opening a FIFO returns instead of waiting for a writer; it has no
-        // effect on reading a regular file, which is the only kind accepted below.
-        let descriptor = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+        // effect on reading a regular file, which is the only kind accepted below. O_NOCTTY so
+        // that opening a terminal device, which is refused as not a regular file a moment later,
+        // cannot first make it this process's controlling terminal.
+        let descriptor = open(path, O_RDONLY | O_NONBLOCK | O_NOCTTY | O_CLOEXEC)
         guard descriptor >= 0 else {
             throw .unreadable(path: path, reason: describe(errno))
         }

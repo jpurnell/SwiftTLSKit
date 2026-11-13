@@ -242,6 +242,25 @@ struct PinningTests {
 
     // MARK: - Writing a pin down
 
+    /// openssl prints a digest as 32 pairs with a colon between each pair and nowhere else. The
+    /// colons are removed before the digits are counted, so a colon anywhere used to pass.
+    @Test(
+        "Colons are accepted between bytes and nowhere else",
+        arguments: [
+            "::0011223344556677889900112233445566778899001122334455667788990011",
+            "0:011223344556677889900112233445566778899001122334455667788990011:2",
+            "00:112233445566778899001122334455667788990011223344556677889900:11",
+            "0011223344556677889900112233445566778899001122334455667788990011:",
+            ":0011223344556677889900112233445566778899001122334455667788990011",
+            "00::11:22:33:44:55:66:77:88:99:00:11:22:33:44:55:66:77:88:99:00:11:22:33:44:55:66:77:88:99:00:11",
+            "00:11:22:33:44:55:66:77:88:99:00:11:22:33:44:55:66:77:88:99:00:11:22:33:44:55:66:77:88:99:00 11",
+            " 0011223344556677889900112233445566778899001122334455667788990011",
+            "0011223344556677889900112233445566778899001122334455667788990011\n",
+        ])
+    func misplacedColons(text: String) {
+        #expect(throws: ClientTrustError.invalidPin(text)) { try CertificatePin.certificate(sha256: text) }
+    }
+
     @Test("A digest is accepted as hex, as openssl's colon-separated hex, and as base64, and all three are one pin")
     func pinSpellings() throws {
         let hex = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"

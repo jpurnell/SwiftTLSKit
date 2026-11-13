@@ -9,7 +9,10 @@ final class Fixture {
     init() throws {
         directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("SwiftTLSKitTests-" + UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        // 0700, not the umask's choice: a key in a directory that others can write is refused, and
+        // an umask of 002 would make every fixture directory one.
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
     }
 
     deinit {

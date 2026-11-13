@@ -230,7 +230,7 @@ tls.reload()
 swift package generate-documentation --target SwiftTLSKit
 ```
 
-Articles: Serving TLS, Reloading Without Restarting, Connecting as a Client, Design Notes.
+Articles: Serving TLS, Reloading Without Restarting, Connecting as a Client, Design Notes, and What 1.x Promises — what the package will not change, and what it does not do.
 
 ## Development
 

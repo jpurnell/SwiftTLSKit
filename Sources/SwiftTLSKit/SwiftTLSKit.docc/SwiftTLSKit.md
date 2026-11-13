@@ -19,7 +19,7 @@ Four properties are the point of it:
   replaces built a TLS context only when both were present, so one without the other served
   plaintext without a word.
 - **An identity is judged before it is served.** ``ServerIdentity/load(now:)`` refuses a
-  missing file, a private key other users can read, a key that does not match the
+  missing file, a private key other users can read or replace, a key that does not match the
   certificate, and a certificate that has expired — each with a typed error that names the
   path and never the contents.
 - **A renewed certificate does not need a restart.** ``ReloadableServerTLS`` replaces the
@@ -44,6 +44,7 @@ a private key on disk.
 - <doc:ReloadingWithoutRestart>
 - <doc:ConnectingAsAClient>
 - <doc:DesignNotes>
+- <doc:StabilityPolicy>
 
 ### Naming and loading a server identity
 

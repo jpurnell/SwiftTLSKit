@@ -224,10 +224,43 @@ key is installed. The specific error it raises is mapped to
 ``ServerIdentityError/privateKeyDoesNotMatchCertificate(certificateChainPath:privateKeyPath:)``;
 anything else becomes ``ServerIdentityError/contextRejected(reason:)``.
 
+### Who can replace a private key, not only who can read it
+
+The first version checked the key's mode: nothing for group or others. A review before 1.0 found
+that a key at `0600` is still not private if somebody else can replace it, because the next reload
+then serves their identity. Three more checks followed, each a typed refusal that names the path:
+the owner (the process's user or root), a directory above the key that group or others can write
+(unless it has the sticky bit, as `/tmp` does, where only a file's owner can rename it), and, on
+macOS only, an access control list. On Linux a POSIX ACL's mask appears in the group bits, which
+the mode check already refuses.
+
+The directory check resolves the path first, so a link into a `live/` directory is judged by where
+the key is, and walks every ancestor to `/`. It is a statement about the layout at that moment,
+not a lock; someone who could change a directory's mode in between could already replace the key.
+
+A refusal can stop a server that used to start, on a system whose directories are group-writable
+by default (a private group per user, with `umask 002`). The message names the directory and the
+command that fixes it. It was chosen over a warning because this is a private key, and a refusal
+that has to be fixed is better than a warning that is read once.
+
+### What the public interface names from NIO
+
+NIOSSL's context and parsed certificates were public in 0.2: `ServerTLSContext.sslContext` and
+`LoadedServerIdentity.certificateChain`, and the handler functions returned `NIOSSLServerHandler`.
+No adopter that could be checked (six packages in the owner's workspace) used any of them, and every one ties the package to a
+NIOSSL major version. Before 1.0 they became `package`-level, which the package's own tests can
+still read, and the handler functions return `any ChannelHandler`. What remains public from NIO is
+the pipeline type the functions that add a handler take, and NIOSSL's `TLSConfiguration`, returned
+by the one function that exists to hand a configuration to a library that builds its own handlers.
+
+`ClientTLSContext.makeHandlers` is `package`-level for a different reason. Its result is two
+handlers for a pinned trust, and a caller who added only the first connected without the pin. The
+function that adds them all, ``ClientTLSContext/addHandlers(to:serverHostname:)``, stays public.
+
 ### An address is verified against the connection, not the string
 
 For an IP address NIOSSL sends no SNI and verifies the certificate against the address the
-channel is actually connected to. ``ClientTLSContext/makeHandlers(serverHostname:)`` therefore
+channel is actually connected to. ``ClientTLSContext/addHandlers(to:serverHostname:)`` therefore
 uses the string to decide *that* the peer is an address; the address checked is the socket's.
 
 ## Not in this version
@@ -235,9 +268,8 @@ uses the string to decide *that* the peer is an address; the address checked is 
 - Client certificates (mutual TLS) on the server side.
 - Encrypted private keys. An encrypted key is refused as
   ``ServerIdentityError/invalidPrivateKey(path:)``.
-- Checking the private key's owner. The mode is checked; the uid is not.
-- Linux has not been built or tested. The code avoids Darwin-only API and the manifest
-  declares only what was verified. ``ClientHandshakeFailure/wrongHostname(under:)`` has a
-  branch for it that states NIOSSL's documented behaviour and has not been run.
+- Checking who owns the *directories* above the key. The key's own owner is checked, and so is
+  who can write to each directory above it; a directory owned by another user and not writable by
+  anyone else is not examined. See <doc:StabilityPolicy>.
 - A way to read the peer certificate's fingerprint after a client handshake. Tests that want
   it still reach for `NIOSSLClientHandler.peerCertificate`.

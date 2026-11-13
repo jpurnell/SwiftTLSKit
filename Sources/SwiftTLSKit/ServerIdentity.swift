@@ -213,7 +213,10 @@ public struct LoadedServerIdentity: Sendable {
     public let identity: ServerIdentity
 
     /// The parsed certificate chain, leaf first.
-    public let certificateChain: [NIOSSLCertificate]
+    ///
+    /// Not public, for the reason ``ServerTLSContext/sslContext`` is not: a NIOSSL type in the
+    /// public interface. What a caller wants from it is ``leaf``.
+    package let certificateChain: [NIOSSLCertificate]
 
     /// The parsed private key. Not public: nothing outside the package needs the key itself,
     /// and a value that cannot be reached cannot be logged.

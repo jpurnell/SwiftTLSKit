@@ -78,6 +78,8 @@ let package = Package(
                 "SwiftTLSKit",
                 "SwiftTLSKitTestSupport",
                 .product(name: "NIOCore", package: "swift-nio"),
+                // An EmbeddedChannel, to put a handler in a state no real handshake reaches.
+                .product(name: "NIOEmbedded", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOTLS", package: "swift-nio"),
                 .product(name: "NIOSSL", package: "swift-nio-ssl"),

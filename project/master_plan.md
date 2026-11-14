@@ -256,6 +256,7 @@ The reasoning for each, and where the code forced a deviation from the first des
     the NIO surface narrowed; the enums closed (PR #8; `api_audit_1.0.md`)
   - [x] `StabilityPolicy.md`; this reconciliation
   - [x] Tagged `1.0.0-beta.1`, 2026-11-13
+  - [x] Tagged `1.0.0`, 2026-11-14
 
 ### What's Next
 - [x] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — six
@@ -278,9 +279,13 @@ The reasoning for each, and where the code forced a deviation from the first des
   `mlx-swift`'s shaders, before SwiftTLSKit, and on `main` too.
 - [x] ~~Release IconquerClient on the beta~~ — `v0.3.0-beta.1`; IconquerCLI then moved onto it.
 - [x] ~~Decide `ResponseStream.discard()` for swiftMoE~~ — it stays `package`; the test changed.
-- [ ] Land the branches: IconquerServer, IconquerTournament and IconquerCLI (local), swiftMoE
-  (pushed, unmerged).
-- [ ] Tag `1.0.0` once the remaining Known-limits decisions are made and the branches have landed.
+- [x] ~~Land the branches~~ — IconquerServer, IconquerTournament, IconquerCLI and swiftMoE are on
+  `main`, 2026-11-14.
+- [x] ~~Tag `1.0.0`~~ — done 2026-11-14, once the branches had landed. It is 1.0.0-beta.1 with the
+  NIO minimums raised.
+- [ ] Move the adopters from `exact: "1.0.0-beta.1"` to `from: "1.0.0"`, each when it next changes;
+  those that reach SwiftTLSKit through SwiftHTTPService, SwiftPushHub or IconquerClient move when
+  that package releases on 1.0.0.
 - [x] ~~Build and test on Linux, then declare it.~~ Done 2026-11-11 (PR #4): all four Linux jobs
   green first time, 135 tests. The plan had expected failures to fix; there were none.
 
@@ -463,7 +468,7 @@ freeze; the security review; documentation), and the review found more than the 
   lesson recorded in the review: a table of known-bad spellings is not a review of the parser.
 - [x] ~~The plan assumed adopters would auto-resolve a breaking 0.3.0~~ — wrong; every adopter
   pins `.upToNextMinor`. Recorded in the proposal where it was corrected.
-- [x] ~~`1.0.0-beta.1`~~ tagged 2026-11-13. [ ] Then adopters, then `1.0.0`.
+- [x] ~~`1.0.0-beta.1`~~ tagged 2026-11-13; the adopters moved to it; `1.0.0` tagged 2026-11-14.
 
 ### Future
 - Pinning during the handshake, if NIOSSL stabilises its additional-verification callback.
@@ -480,7 +485,7 @@ freeze; the security review; documentation), and the review found more than the 
 
 ---
 
-**Last Updated:** 2026-11-14, all eleven adopters verified on the beta: Phase 2 table and findings, What's Next and the 1.0.0 criterion updated (IconquerClient released as `v0.3.0-beta.1`; IconquerServer, IconquerTournament and IconquerCLI verified after the Metal toolchain; swiftMoE's test changed). Earlier, 2026-11-13 (later), adopter results recorded: Target Users corrected (eleven packages depend on SwiftTLSKit, not seven: one of the seven was a duplicate checkout, and five were missed; the earlier "not in the workspace" was wrong and is struck through), What's Next with the 1.0.0 criterion's status, Phase 2 rewritten with the results table and findings. Earlier the same day, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
+**Last Updated:** 2026-11-14, 1.0.0 tagged (CHANGELOG section and link references; README install and a "Moving to 1.0" section; What's Next and Phase 5 ticked, with the adopters' move from `exact: "1.0.0-beta.1"` to `from: "1.0.0"` as the remaining item). Earlier the same day: 2026-11-14, all eleven adopters verified on the beta: Phase 2 table and findings, What's Next and the 1.0.0 criterion updated (IconquerClient released as `v0.3.0-beta.1`; IconquerServer, IconquerTournament and IconquerCLI verified after the Metal toolchain; swiftMoE's test changed). Earlier, 2026-11-13 (later), adopter results recorded: Target Users corrected (eleven packages depend on SwiftTLSKit, not seven: one of the seven was a duplicate checkout, and five were missed; the earlier "not in the workspace" was wrong and is struck through), What's Next with the 1.0.0 criterion's status, Phase 2 rewritten with the results table and findings. Earlier the same day, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
 type table, decision 15, Current Status and Roadmap (new Phase 4) reconciled against
 `fix/loopback-reason-and-seeded-generator`, which adds `SeededGenerator` to the test-support
 product and corrects the stated reason for the leading-zero rule. The "Tested on macOS arm64"

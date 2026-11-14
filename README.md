@@ -27,7 +27,7 @@ no event loops, no listener framework.
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/jpurnell/SwiftTLSKit.git", .upToNextMinor(from: "0.2.1")),
+    .package(url: "https://github.com/jpurnell/SwiftTLSKit.git", from: "1.0.0"),
 ],
 targets: [
     .target(name: "MyServer", dependencies: [
@@ -46,23 +46,25 @@ resolves over **SSH** as `git@github.com:jpurnell/SwiftTLSKit.git`; the existing
 whichever form they already had. Use one form throughout a dependency graph, so that the package
 is not named by two URLs.
 
-`.upToNextMinor`, not `from:`. Before 1.0 a minor version may break source — 0.2.0
-did, see the CHANGELOG — and `from: "0.1.0"` means "anything below 1.0.0", so it
-takes such a release at the next `swift package update`.
+`from: "1.0.0"` is right from 1.0: a 1.x release does not break source, and *What 1.x promises* in
+the documentation says what that covers, which enumerations are closed, and what is not API.
+(Before 1.0 a minor version could break source, as 0.2.0 did, and `.upToNextMinor` was the safe
+pin. A package that still uses `.upToNextMinor(from: "0.2.1")` stays on 0.2.1 until it changes
+its requirement.)
 
-### The 1.0 beta
+### Moving to 1.0
 
-`1.0.0-beta.1` is the candidate for 1.0.0. SwiftPM never selects a prerelease for a range such
-as `.upToNextMinor(from: "0.2.1")`, so a package pinned that way stays on 0.2.1 until it asks:
+From **0.2.x**, the source-breaking changes are listed at the top of the 1.0.0-beta.1 section of
+the CHANGELOG: three new `ServerIdentityError` cases and one `ClientTrustError` case, the handler
+functions returning `any ChannelHandler`, and three members that are no longer public
+(`sslContext`, `certificateChain`, `makeHandlers`). It also refuses a private key that 0.2.x
+accepted if another user owns it, or if a directory above it can be written by group or others.
 
-```swift
-.package(url: "https://github.com/jpurnell/SwiftTLSKit.git", exact: "1.0.0-beta.1"),
-```
+From the **1.0.0-beta.1** prerelease, change `exact: "1.0.0-beta.1"` to `from: "1.0.0"`. 1.0.0 is the
+beta with the minimum NIO versions raised (swift-nio 2.105.0, swift-nio-ssl 2.37.6) and nothing else.
 
-It has source-breaking changes from 0.2.1, all listed at the top of the CHANGELOG, and it refuses
-a private key that 0.2.1 accepted if another user owns it or can replace it (a directory above
-it that group or others can write). Read *What 1.x promises* in the documentation for what will
-and will not change between the beta and 1.0.0.
+A package that reaches SwiftTLSKit through another (SwiftHTTPService, SwiftPushHub, IconquerClient)
+moves when that package does, since each pins the version it was built against.
 
 Two products:
 

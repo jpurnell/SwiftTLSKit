@@ -4,6 +4,15 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-14
+
+The first stable release. It is 1.0.0-beta.1 with one change: the minimum versions of the NIO
+dependencies. Nothing a caller writes changes between the two. For upgrading from 0.2.x, the
+source-breaking changes, the new refusals and the behaviour changes are in the 1.0.0-beta.1 section
+below; *What 1.x promises* in the documentation says what a 1.x release will and will not change.
+Eleven adopters were moved to the beta and none needed a source change to this package; the results
+are in the master plan.
+
 ### Changed
 - **The minimum versions of the NIO dependencies are raised:** swift-nio 2.102.0 to 2.105.0, and
   swift-nio-ssl 2.37.4 to 2.37.6. They remain minimums (`from:`), not pins: anything newer within
@@ -383,7 +392,8 @@ view and SwiftMCPClient, written once. Nothing has adopted it yet.
   script it replaced, with `cp`, is `0644` and will be refused until the next renewal
   rewrites it or it is `chmod 600`ed.
 
-[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0-beta.1...HEAD
+[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0...HEAD
+[1.0.0]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0-beta.1...1.0.0
 [1.0.0-beta.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.1...1.0.0-beta.1
 [0.2.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/jpurnell/SwiftTLSKit/compare/0.1.0...0.2.0

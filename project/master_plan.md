@@ -267,18 +267,20 @@ The reasoning for each, and where the code forced a deviation from the first des
 - [ ] Move the adopters to the beta and record what each finds (results: Phase 2). **The
   criterion for 1.0.0** is that every adopter that has moved reports nothing that needs a source
   change to this package, and the security review's decisions still hold. Findings that would
-  need a new case in a closed enum are the reason to keep the beta open. *Status 2026-11-13:*
-  of eleven, six are on the beta on `main` with no source change, and a seventh (IconquerClient)
-  is migrated on a local branch; none has asked for one. Not yet tested: IconquerServer and IconquerTournament (no Metal toolchain on the build machine),
-  IconquerCLI (waits on an IconquerClient release), swiftMoE (blocked by SwiftHTTPService's API
-  freeze, not by this package). The criterion is therefore not yet met, and nothing found so far
-  argues against it.
-- [ ] Verify IconquerServer and IconquerTournament: `xcodebuild -downloadComponent MetalToolchain`
-  (a system download; the build fails in `mlx-swift`'s shaders before it reaches SwiftTLSKit, on
-  `main` too), then migrate and test.
-- [ ] Release IconquerClient on the beta; then IconquerCLI (it depends on the tagged 0.2.x).
-- [ ] Decide `ResponseStream.discard()` for swiftMoE: SwiftHTTPService made it `package` in
-  1.0.0-beta.3 (its changelog says so) and swiftMoE's tests call it.
+  need a new case in a closed enum are the reason to keep the beta open. *Status 2026-11-14:*
+  of eleven, **all eleven now build and pass their tests on the beta**. None has asked for a source
+  change to SwiftTLSKit; one (swiftMoE) needed a test change because of SwiftHTTPService's API freeze.
+  Six are on `main`, IconquerClient is released as a prerelease, and four (IconquerServer,
+  IconquerTournament, IconquerCLI, swiftMoE) are committed or pushed on branches and not yet merged.
+  The criterion is met by what was tested; what remains is landing the branches.
+- [x] ~~Verify IconquerServer and IconquerTournament~~ — done after the Metal toolchain was
+  installed (`xcodebuild -downloadComponent MetalToolchain`); the earlier failure was in
+  `mlx-swift`'s shaders, before SwiftTLSKit, and on `main` too.
+- [x] ~~Release IconquerClient on the beta~~ — `v0.3.0-beta.1`; IconquerCLI then moved onto it.
+- [x] ~~Decide `ResponseStream.discard()` for swiftMoE~~ — it stays `package`; the test changed.
+- [ ] Land the branches: IconquerServer, IconquerTournament and IconquerCLI (local), swiftMoE
+  (pushed, unmerged).
+- [ ] Tag `1.0.0` once the remaining Known-limits decisions are made and the branches have landed.
 - [x] ~~Build and test on Linux, then declare it.~~ Done 2026-11-11 (PR #4): all four Linux jobs
   green first time, 135 tests. The plan had expected failures to fix; there were none.
 
@@ -364,10 +366,11 @@ been missed.)
 | SwiftDiagnosticsHub | 0.2.1 | beta.1 + beta.3 + SwiftPushHub `d4a5fff`, on `main` | 358 tests pass |
 | SwiftPenTest | 0.2.1 | beta.1, on `main` (`7fae62f`) | 11 tests pass |
 | FleetWatch | 0.2.1 | beta.1 + beta.3, root and Xcode project resolved, on `main` | 1,044 tests pass; the app was not built in Xcode |
-| IconquerClient | 0.2.0 range | beta.1 on a local branch (`3593376`), not pushed | 53 tests pass |
-| IconquerServer, IconquerTournament | 0.2.0 range | not migrated | **unverified**: no Metal toolchain here, so `mlx-swift` (via IconquerAI) does not build, on `main` too |
-| IconquerCLI | 0.2.0 range | not migrated | **blocked**: depends on the tagged IconquerClient 0.2.x, which requires SwiftTLSKit 0.2.x |
-| swiftMoE | 0.2.1 + SwiftHTTPService 0.6.0 | not migrated | **blocked by SwiftHTTPService**, not by this package (below) |
+| IconquerClient | 0.2.0 range | beta.1, **released as `v0.3.0-beta.1`** (a prerelease, so `from: "0.2.0"` consumers do not receive it), on `main` | 53 tests pass |
+| IconquerServer | 0.2.0 range | beta.1, committed on a local branch (`d9429e1`), not pushed | 156 tests pass (built once the Metal toolchain was installed) |
+| IconquerTournament | 0.2.0 range | beta.1, committed on a local branch (`5aa3f66`), not pushed | 267 tests pass |
+| IconquerCLI | 0.2.0 range | beta.1 + IconquerClient `0.3.0-beta.1`, committed on a local branch (`98bdb11`), not pushed | 376 tests pass |
+| swiftMoE | 0.2.1 + SwiftHTTPService 0.6.0 | beta.1 + SwiftHTTPService beta.3, pushed on a branch (`27f8686`), not merged | 255 tests pass, after one test change (below) |
 | SwiftMCPServer, SwiftMCPClient, VaultMCP | no dependency | — | not adopters |
 
 What it found:
@@ -380,9 +383,16 @@ What it found:
   exactly (IconquerClient) holds its own dependents back until it is released. This is
   expected of an exact-pinned prerelease; it makes SwiftHTTPService's versions part of this
   package's compatibility story.
-- **swiftMoE's break is SwiftHTTPService's API freeze, not this package.** Its tests call
-  `ResponseStream.discard()`, which was `public` in SwiftHTTPService 0.6.0 and is `package` in
-  1.0.0-beta.3 (that package's changelog records it).
+- **swiftMoE's one source change came from SwiftHTTPService's API freeze, not this package.** Its
+  tests called `ResponseStream.discard()`, which was `public` in SwiftHTTPService 0.6.0 and is
+  `package` in 1.0.0-beta.3 (that package's changelog records it). The decision was that it need
+  not be public. The test now runs the stream with a writer that throws on its first write, and
+  asserts the same two things; a mutant that never runs the stream fails it. The
+  discard-before-start path cannot be hit deterministically from a socket (a reset can arrive
+  before any slot exists), so it stays covered by the transport-level test beside it.
+- **Release naming.** A library that pins a prerelease exactly has to be released as a
+  prerelease, or every `from:` consumer would be moved onto the beta without asking.
+  IconquerClient shipped as `v0.3.0-beta.1`, not `0.2.1`.
 - **SwiftHTTPService has load-sensitive tests**: under the same CPU load the beta failed 2 of 6
   full runs and 0.2.1 failed 3 of 6, on different loopback and HTTP/2 timing tests, and both pass
   8 of 8 on a quiet machine. Not caused by this package.
@@ -470,7 +480,7 @@ freeze; the security review; documentation), and the review found more than the 
 
 ---
 
-**Last Updated:** 2026-11-13 (later), adopter results recorded: Target Users corrected (eleven packages depend on SwiftTLSKit, not seven: one of the seven was a duplicate checkout, and five were missed; the earlier "not in the workspace" was wrong and is struck through), What's Next with the 1.0.0 criterion's status, Phase 2 rewritten with the results table and findings. Earlier the same day, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
+**Last Updated:** 2026-11-14, all eleven adopters verified on the beta: Phase 2 table and findings, What's Next and the 1.0.0 criterion updated (IconquerClient released as `v0.3.0-beta.1`; IconquerServer, IconquerTournament and IconquerCLI verified after the Metal toolchain; swiftMoE's test changed). Earlier, 2026-11-13 (later), adopter results recorded: Target Users corrected (eleven packages depend on SwiftTLSKit, not seven: one of the seven was a duplicate checkout, and five were missed; the earlier "not in the workspace" was wrong and is struck through), What's Next with the 1.0.0 criterion's status, Phase 2 rewritten with the results table and findings. Earlier the same day, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
 type table, decision 15, Current Status and Roadmap (new Phase 4) reconciled against
 `fix/loopback-reason-and-seeded-generator`, which adds `SeededGenerator` to the test-support
 product and corrects the stated reason for the leading-zero rule. The "Tested on macOS arm64"

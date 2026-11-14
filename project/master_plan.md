@@ -13,12 +13,18 @@ server takes a renewed certificate, and what a client is prepared to trust — s
 written, tested and corrected in one place.
 
 ### Target Users
-- The owner's NIO servers and clients. Seven packages in the owner's workspace depend on 0.2.1
-  (checked 2026-11-13, each `.upToNextMinor(from: "0.2.1")`): FleetWatch, FleetWatch-infoplist,
-  ijs-dashboard-server, SwiftHTTPService, SwiftPushHub, SwiftDiagnosticsHub, SwiftPenTest.
-- Named in the original plan and **not checked on 2026-11-13** (not in the workspace):
-  SwiftMCPServer, VaultMCP's web view, IconquerServer, IconquerTournament, IconquerClient,
-  SwiftMCPClient. IconquerServer and IconquerClient adopted 0.1.0 on 2026-10-06.
+- The owner's NIO servers and clients. Six packages depend on 0.2.1 (checked 2026-11-13, each
+  `.upToNextMinor(from: "0.2.1")`): FleetWatch, ijs-dashboard-server, SwiftHTTPService,
+  SwiftPushHub, SwiftDiagnosticsHub, SwiftPenTest. (An earlier count of seven included
+  `FleetWatch-infoplist`, which is a second checkout of FleetWatch and not another package.)
+- Also on SwiftTLSKit, found later the same day (`.upToNextMinor(from: "0.2.0")`): IconquerClient,
+  IconquerServer, IconquerTournament, IconquerCLI (in `Swift/`, one level above `Tools/`); and
+  swiftMoE (0.2.1, with SwiftHTTPService 0.6.0). **Eleven packages depend on SwiftTLSKit.**
+- Named in the original plan and **not adopters**: SwiftMCPServer, SwiftMCPClient and VaultMCP
+  have no SwiftTLSKit dependency. ~~"Not checked… not in the workspace."~~ That line was wrong:
+  all of them are on this machine. The first search looked in `Tools/` only, then checked a
+  hard-coded list of names. They were found by scanning every `Package.swift` for
+  `SwiftTLSKit`, which is what should have been done first.
 
 ### Key Differentiators
 - **A half-configured identity is an error, never plaintext.** The copies this replaces built
@@ -252,16 +258,27 @@ The reasoning for each, and where the code forced a deviation from the first des
   - [x] Tagged `1.0.0-beta.1`, 2026-11-13
 
 ### What's Next
-- [x] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — seven
-  packages depend on 0.2.1 (see Target Users).
+- [x] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — six
+  packages depend on 0.2.1, and five more on the 0.2.0 line (see Target Users).
 - [x] ~~Merge `feat/adopter-feedback`, tag 0.2.0~~ (done 2026-10-06)
 - [x] ~~Move the two adopters to it~~ — every adopter found on 2026-11-13 is on 0.2.1.
 - [x] ~~Tag `1.0.0-beta.1`~~ — done 2026-11-13. Adopters do not receive it until they ask for it:
   a prerelease is never selected by `.upToNextMinor(from: "0.2.1")`.
-- [ ] Move the adopters to the beta, one at a time, and record what each finds. **The criterion
-  for 1.0.0** is that every adopter that has moved reports nothing that needs a source change
-  to this package, and the security review's decisions still hold. Findings that would need a
-  new case in a closed enum are the reason to keep the beta open.
+- [ ] Move the adopters to the beta and record what each finds (results: Phase 2). **The
+  criterion for 1.0.0** is that every adopter that has moved reports nothing that needs a source
+  change to this package, and the security review's decisions still hold. Findings that would
+  need a new case in a closed enum are the reason to keep the beta open. *Status 2026-11-13:*
+  of eleven, six are on the beta on `main` with no source change, and a seventh (IconquerClient)
+  is migrated on a local branch; none has asked for one. Not yet tested: IconquerServer and IconquerTournament (no Metal toolchain on the build machine),
+  IconquerCLI (waits on an IconquerClient release), swiftMoE (blocked by SwiftHTTPService's API
+  freeze, not by this package). The criterion is therefore not yet met, and nothing found so far
+  argues against it.
+- [ ] Verify IconquerServer and IconquerTournament: `xcodebuild -downloadComponent MetalToolchain`
+  (a system download; the build fails in `mlx-swift`'s shaders before it reaches SwiftTLSKit, on
+  `main` too), then migrate and test.
+- [ ] Release IconquerClient on the beta; then IconquerCLI (it depends on the tagged 0.2.x).
+- [ ] Decide `ResponseStream.discard()` for swiftMoE: SwiftHTTPService made it `package` in
+  1.0.0-beta.3 (its changelog says so) and swiftMoE's tests call it.
 - [x] ~~Build and test on Linux, then declare it.~~ Done 2026-11-11 (PR #4): all four Linux jobs
   green first time, 135 tests. The plan had expected failures to fix; there were none.
 
@@ -331,19 +348,56 @@ This principle is operationalized in the **Adversarial Review** step of `design_
 - [x] ~~Server identity, server context, reload, client trust, bind exposure~~ — shipped in
   0.1.0, 2026-10-06.
 
-### Phase 2: Adoption — seven packages on 0.2.1 (checked 2026-11-13)
+### Phase 2: Adoption — eleven packages depend on it (checked 2026-11-13)
 Each replaces a hand-written copy. (This heading read "none started" when 0.1.0 was tagged,
-and "two of six started" until 2026-11-13, when the manifests were read.) Seven packages in the
-workspace are on 0.2.1: FleetWatch, FleetWatch-infoplist, ijs-dashboard-server, SwiftHTTPService,
-SwiftPushHub, SwiftDiagnosticsHub, SwiftPenTest. The items below are the packages named in the
-original plan, **not checked** on that date:
-- [ ] IconquerServer — started: on 0.1.0 on `feat/tls` (PR #4), 2026-10-06. Open until it is
-  on 0.2.0, where it can delete the workarounds it wrote for 0.1.0.
-- [ ] IconquerClient — started: on 0.1.0 on `feat/wss` (PR #2), 2026-10-06. Likewise.
+"two of six started" until the manifests were read, and "seven packages" until it was found
+that one of the seven was a duplicate checkout and that the Iconquer packages and swiftMoE had
+been missed.)
+
+**Results of moving to 1.0.0-beta.1**, 2026-11-13, each from the repository's `origin/main`:
+
+| Package | Was | Now | Verified |
+|---|---|---|---|
+| SwiftHTTPService | 0.2.1 | beta.1, on `main` (its v1.0.0-beta.3) | tests pass; CI green on macOS and **Linux (Swift 6.2)** |
+| SwiftPushHub | 0.2.1 | beta.1 + SwiftHTTPService beta.3, on `main` | landed by another session; not re-run here |
+| ijs-dashboard-server | 0.2.1 | beta.1 + beta.3, on `main` | 504 tests pass |
+| SwiftDiagnosticsHub | 0.2.1 | beta.1 + beta.3 + SwiftPushHub `d4a5fff`, on `main` | 358 tests pass |
+| SwiftPenTest | 0.2.1 | beta.1, on `main` (`7fae62f`) | 11 tests pass |
+| FleetWatch | 0.2.1 | beta.1 + beta.3, root and Xcode project resolved, on `main` | 1,044 tests pass; the app was not built in Xcode |
+| IconquerClient | 0.2.0 range | beta.1 on a local branch (`3593376`), not pushed | 53 tests pass |
+| IconquerServer, IconquerTournament | 0.2.0 range | not migrated | **unverified**: no Metal toolchain here, so `mlx-swift` (via IconquerAI) does not build, on `main` too |
+| IconquerCLI | 0.2.0 range | not migrated | **blocked**: depends on the tagged IconquerClient 0.2.x, which requires SwiftTLSKit 0.2.x |
+| swiftMoE | 0.2.1 + SwiftHTTPService 0.6.0 | not migrated | **blocked by SwiftHTTPService**, not by this package (below) |
+| SwiftMCPServer, SwiftMCPClient, VaultMCP | no dependency | — | not adopters |
+
+What it found:
+- **No source change was needed in any package that could be built**, and none uses an API this
+  package changed (`makeHandlers`, `sslContext`, `certificateChain`, a `switch` over the enums
+  that gained cases were all checked for, by search, before moving).
+- **A package that reaches SwiftTLSKit through another cannot move alone.** SwiftHTTPService
+  0.8.x and an older SwiftPushHub revision require SwiftTLSKit 0.2.x, which excludes the beta, so
+  each of those adopters changed two or three pins at once, and a library that pins the beta
+  exactly (IconquerClient) holds its own dependents back until it is released. This is
+  expected of an exact-pinned prerelease; it makes SwiftHTTPService's versions part of this
+  package's compatibility story.
+- **swiftMoE's break is SwiftHTTPService's API freeze, not this package.** Its tests call
+  `ResponseStream.discard()`, which was `public` in SwiftHTTPService 0.6.0 and is `package` in
+  1.0.0-beta.3 (that package's changelog records it).
+- **SwiftHTTPService has load-sensitive tests**: under the same CPU load the beta failed 2 of 6
+  full runs and 0.2.1 failed 3 of 6, on different loopback and HTTP/2 timing tests, and both pass
+  8 of 8 on a quiet machine. Not caused by this package.
+- **SwiftMCPServer still has the fail-open block** the package was built to remove
+  (`if let certPath = tlsCertPath, let keyPath = tlsKeyPath` in `HTTPServerTransport`): given one
+  of the two it serves plaintext. It has not adopted SwiftTLSKit.
+- **Other sessions land migrations concurrently.** Four of the six `main` branches already had
+  the move by the time a second one was prepared, and two checked-out repos had work in
+  progress. A migration should start from `git fetch`.
+
+Still to adopt, as planned in 0.1.0:
 - [ ] SwiftMCPServer — replaces the `if let certPath, let keyPath` block in
   `HTTPServerTransport.connect()`, which serves plaintext when given one of the two
-- [ ] VaultMCP web — replaces the second copy in `VaultMCPWebMain/main.swift`
-- [ ] IconquerTournament
+- [ ] VaultMCP web — replaces the second copy in `VaultMCPWebMain/main.swift` (it uses NIOSSL
+  directly)
 - [ ] SwiftMCPClient — `ServerTrust` maps onto `ClientTrust` case for case; its AsyncHTTPClient
   path takes `makeTLSConfiguration()`
 
@@ -416,7 +470,7 @@ freeze; the security review; documentation), and the review found more than the 
 
 ---
 
-**Last Updated:** 2026-11-13, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
+**Last Updated:** 2026-11-13 (later), adopter results recorded: Target Users corrected (eleven packages depend on SwiftTLSKit, not seven: one of the seven was a duplicate checkout, and five were missed; the earlier "not in the workspace" was wrong and is struck through), What's Next with the 1.0.0 criterion's status, Phase 2 rewritten with the results table and findings. Earlier the same day, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
 type table, decision 15, Current Status and Roadmap (new Phase 4) reconciled against
 `fix/loopback-reason-and-seeded-generator`, which adds `SeededGenerator` to the test-support
 product and corrects the stated reason for the leading-zero rule. The "Tested on macOS arm64"

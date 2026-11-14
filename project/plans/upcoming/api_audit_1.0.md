@@ -24,7 +24,7 @@ plus a by-hand pass, because the digester treats `package` access as still part 
 | A host or path containing a NUL is refused | behaviour (stricter) | n/a |
 | `ClientHandshakeFailure` reads the reason name as well as the number | none for any error NIOSSL produces today | n/a |
 
-**Adopters.** Of the seven packages in the owner's workspace that depend on 0.2.1 (all
+**Adopters.** Of the six packages in the owner's workspace that depend on 0.2.1 (all
 `.upToNextMinor(from: "0.2.1")`, so none receives any of this until it edits its manifest), none uses
 a removal †, none matches on a `ServerIdentityError` or `ClientTrustError` case (SwiftHTTPService
 carries a `ServerIdentityError` as a payload only), and none calls `makeHandler()`. IconquerClient is

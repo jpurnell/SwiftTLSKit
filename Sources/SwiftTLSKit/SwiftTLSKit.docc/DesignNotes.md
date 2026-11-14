@@ -247,7 +247,7 @@ that has to be fixed is better than a warning that is read once.
 
 NIOSSL's context and parsed certificates were public in 0.2: `ServerTLSContext.sslContext` and
 `LoadedServerIdentity.certificateChain`, and the handler functions returned `NIOSSLServerHandler`.
-No adopter that could be checked (seven packages in the owner's workspace) used any of them, and every one ties the package to a
+No adopter that could be checked (six packages in the owner's workspace) used any of them, and every one ties the package to a
 NIOSSL major version. Before 1.0 they became `package`-level, which the package's own tests can
 still read, and the handler functions return `any ChannelHandler`. What remains public from NIO is
 the pipeline type the functions that add a handler take, and NIOSSL's `TLSConfiguration`, returned

@@ -128,6 +128,14 @@ struct ContextConfigurationTests {
         }
     }
 
+    @Test("A zoned link-local literal is refused as a server name, not sent as one or taken for an address")
+    func zonedLiteralRefused() throws {
+        let context = try ClientTLSContext(trust: .systemRoots)
+        #expect(throws: ClientTrustError.invalidServerHostname("fe80::1%eth0")) {
+            try context.makeHandlers(serverHostname: "fe80::1%eth0")
+        }
+    }
+
     @Test("One TLS handler is made for a name, and one for an address")
     func handlerCount() throws {
         let context = try ClientTLSContext(trust: .systemRoots)

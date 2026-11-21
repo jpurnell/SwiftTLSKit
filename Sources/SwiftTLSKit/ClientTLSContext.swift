@@ -80,6 +80,10 @@ public struct ClientTLSContext: Sendable {
     ///   ``ClientTrustError/invalidServerHostname(_:)``.
     package func makeHandlers(serverHostname: String) throws(ClientTrustError) -> [any ChannelHandler] {
         guard !serverHostname.isEmpty else { throw .emptyServerHostname }
+        // A zone (`fe80::1%eth0`) is neither a name nor an address a certificate can carry. Sent as
+        // a server name it would put an interface name in the SNI, which RFC 6066 forbids for a
+        // literal address, and which Glibc's NIOSSL accepts without complaint.
+        guard !IPAddressLiteral.hasZone(serverHostname) else { throw .invalidServerHostname(serverHostname) }
         // An address is not sent as SNI. NIOSSL then verifies the certificate against the
         // address the channel is connected to.
         let serverName: String? = IPAddressLiteral.isAddress(serverHostname) ? nil : serverHostname

@@ -132,6 +132,23 @@ is found there.
 
 One row depends on the platform, and the next section says how.
 
+## The system's roots on Linux
+
+On Apple platforms ``ClientTrust/systemRoots`` is answered by the operating system. On Linux it is
+answered by a CA bundle that NIOSSL looks for in fixed places (`/etc/ssl/certs/ca-certificates.crt`,
+then `/etc/pki/tls/certs/ca-bundle.crt`, with `/etc/ssl/certs` as a directory) and reads once. The
+`SSL_CERT_FILE` environment variable is not consulted.
+
+A machine without one, such as a minimal container or a new VPS without the `ca-certificates`
+package, cannot build a context that trusts the system. ``ClientTrust/systemRoots`` and
+``ClientTrust/additionalRoots(_:)`` throw ``ClientTrustError/contextRejected(reason:)`` when the
+context is made, not when a connection is attempted, and the reason can be empty. Install the
+package (`apt-get install ca-certificates`). ``ClientTrust/onlyRoots(_:)`` needs no system store and
+is unaffected.
+
+A server name that is a literal address with a zone, such as `fe80::1%eth0`, is refused with
+``ClientTrustError/invalidServerHostname(_:)`` on every platform: no certificate can name a zone.
+
 ## Development certificates on Apple platforms
 
 When the system root store is consulted — every case except ``ClientTrust/onlyRoots(_:)`` —

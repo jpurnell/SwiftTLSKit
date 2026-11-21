@@ -53,9 +53,6 @@ struct IPAddressLiteralTests {
                 == [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xc0, 0x00, 0x02, 0x01])
     }
 
-    // Deliberately absent from the list below: "fe80::1%eth0". Darwin's `inet_pton` accepts a zone suffix
-    // and returns the address; Glibc rejects it. Making them agree changes what macOS adopters get for
-    // a zoned literal, so it is a decision for a minor release, recorded in the LinuxSupport checklist.
     @Test("Text that is not an IPv6 address is not one")
     func malformed() {
         let notAddresses = [
@@ -66,10 +63,19 @@ struct IPAddressLiteralTests {
             "1::2::3",  // two runs of zeros
             "12345::",  // a group of five digits
             "::g",
+            "fe80::1%eth0",  // a zone is not part of an address; Darwin's inet_pton would accept it
+            "fe80::1%",
             "1.2.3.4",  // an IPv4 literal is not an IPv6 one
         ]
         for text in notAddresses {
             #expect(IPAddressLiteral.ipv6Bytes(text) == nil, "\(text) is not an IPv6 address")
         }
+    }
+
+    @Test("A zone suffix makes a literal not an address, on every platform")
+    func zoneIsNotAnAddress() {
+        #expect(IPAddressLiteral.isAddress("fe80::1") == true)
+        #expect(IPAddressLiteral.isAddress("fe80::1%eth0") == false)
+        #expect(IPAddressLiteral.isAddress("1.2.3.4%eth0") == false)
     }
 }

@@ -17,6 +17,17 @@ enum IPAddressLiteral {
         !literal.utf8.contains(0)
     }
 
+    /// Whether `literal` carries a zone, as in `fe80::1%eth0`.
+    ///
+    /// A zone names a local interface. It is not part of the address, and no certificate can name
+    /// it. Darwin's `inet_pton` accepts one and Glibc's does not, so ``ipv6Bytes(_:)``
+    /// refuses it before the C library is asked, and a zoned literal means the same thing on every
+    /// platform. ``ClientTLSContext`` refuses it as a server name, because neither NIOSSL nor an
+    /// address check can do anything correct with it.
+    static func hasZone(_ literal: String) -> Bool {
+        literal.utf8.contains(UInt8(ascii: "%"))
+    }
+
     /// The four bytes of an IPv4 literal in network order, or `nil` if `literal` is not one.
     static func ipv4Bytes(_ literal: String) -> [UInt8]? {
         var address = in_addr()
@@ -36,7 +47,7 @@ enum IPAddressLiteral {
         // array is the destination on every libc. Reading them out of `in6_addr` instead would mean
         // naming the union member, and Darwin, Glibc and Musl each name it differently.
         var bytes = [UInt8](repeating: 0, count: 16)
-        guard isWhole(literal), inet_pton(AF_INET6, literal, &bytes) == 1 else { return nil }
+        guard isWhole(literal), !hasZone(literal), inet_pton(AF_INET6, literal, &bytes) == 1 else { return nil }
         return bytes
     }
 

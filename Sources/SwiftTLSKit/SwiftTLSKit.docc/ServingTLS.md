@@ -132,6 +132,20 @@ there is one, the command that fixes it.
 closure it calls at each load. Nothing in the package reads the clock. A server passes
 `{ Date() }`; a test passes any instant it wants to ask about.
 
+## Key files on Linux
+
+The rules for the private key (no access for group or others, owned by the process's user or by
+root, in a directory no one else can write to unless it is sticky) are the same on Linux, and
+the common distribution defaults do not meet them. A key in `/etc/ssl/private` is typically
+`root:ssl-cert` with mode `0640`, which is group-readable and is refused. A Let's Encrypt `live/`
+key is a symlink to a root-owned `0600` file inside a `0700` directory, which a process running as
+root can use and any other user cannot.
+
+For a service that does not run as root, copy the key to a file the service owns, mode `0600`, from
+the renewal's deploy hook, for example `install -m 0600 -o service -g service "$RENEWED_LINEAGE/privkey.pem" /var/lib/service/tls/key.pem`.
+The check is not relaxed on Linux: a group-readable private key is what it exists to refuse. A
+POSIX ACL appears in the group bits, so one that grants another user access is refused too.
+
 ## Logging what is being served
 
 ``CertificateSummary`` is there so a start-up log can say which certificate the server holds

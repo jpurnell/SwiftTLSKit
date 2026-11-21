@@ -19,9 +19,12 @@ no event loops, no listener framework.
 
 - Swift 6.2 or later
 - macOS 14, iOS 17, tvOS 17 or visionOS 1, or later. Tested on macOS (arm64); built for
-  generic iOS, tvOS and visionOS devices with `xcodebuild`. Also built and tested on Linux,
-  x86_64 and arm64, with Swift 6.2 and the newest stable toolchain, by CI
-  (`.github/workflows/ci.yml`; first green run 2026-11-11, 135 tests).
+  generic iOS, tvOS and visionOS devices with `xcodebuild`. Also built and tested on Linux
+  (x86_64 and arm64, Swift 6.2 and the newest stable toolchain) by CI
+  (`.github/workflows/ci.yml`), and verifiable without GitHub: `scripts/linux-test.sh` runs the
+  suite on any Linux host you can ssh to (x86_64, Swift 6.4.2 and 6.2.4, 203 tests, as of 1.0.1). Builds against Musl
+  (`x86_64-swift-linux-musl`, `aarch64-swift-linux-musl`) as of 1.0.1; the static SDK cannot run
+  the test suite, so that is a build check.
 
 ## Installation
 

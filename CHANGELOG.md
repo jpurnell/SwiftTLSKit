@@ -4,6 +4,45 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-21
+
+A fix so the package builds against Musl (a static Linux binary), a fix so that a zoned IPv6 literal
+means the same on every platform, and a way to verify Linux from a laptop. No public type,
+function or case changes.
+
+### Fixed
+- **The package did not compile against Musl.** `IPAddressLiteral.ipv6Bytes` read the address out
+  of `in6_addr` by naming a union member that Darwin, Glibc and Musl each name differently, and the
+  non-Darwin branch used Glibc's. The 1.0.0 notes said Linux needed no source change; that held for
+  Glibc, the only libc CI built. `inet_pton` writes through a `void *`, so the address is now read
+  into a sixteen-byte array, and the `#if` is gone. Reproduced with the Swift 6.4.2 static Linux SDK
+  (`value of type 'in6_addr' has no member '__in6_u'`); both products now build for
+  `x86_64-swift-linux-musl` and `aarch64-swift-linux-musl`. The static SDK has no `Testing` module,
+  so the suite cannot run against Musl: that is a build check only.
+- **A zoned IPv6 literal (`fe80::1%eth0`) was an address on macOS and a hostname on Linux.** Darwin's
+  `inet_pton` accepts a zone; Glibc's does not. On Linux the literal went to NIOSSL as a server
+  name, which accepted it and sent the interface name as SNI, which RFC 6066 forbids for an address.
+  A zone is now never part of an address, and `ClientTLSContext` refuses a zoned literal as a server
+  name with `ClientTrustError.invalidServerHostname`, on every platform. Behaviour change on macOS:
+  a connection to a zoned literal used to proceed with no SNI; no certificate can name a zone, so
+  it could not have verified a name, and now it is refused where the configuration is made.
+
+### Added
+- **`scripts/linux-test.sh`**: syncs the tree (without `.build` or `.git`) to a Linux host over ssh
+  and runs the suite there, optionally under a named swiftly toolchain (`6.2`), optionally with the
+  system CA store hidden from that one process (`--no-ca-store`, using bubblewrap; no root), and
+  optionally building against the static Linux SDK (`--musl`). Linux no longer depends on GitHub
+  Actions to be verified. First run: 193 tests on Swift 6.4.2 and 6.2.4, Ubuntu 26.04, x86_64,
+  non-root. (The 135 in the 1.0.0 notes was the count at the time.)
+- Tests: IPv6 vectors written from RFC 4291 and RFC 5952; a suite that records what a client does
+  on a box with no system CA store (`BareBoxTrustTests`, skipped unless the harness hides the store).
+
+### Documented
+- On Linux, `ClientTrust.systemRoots` and `.additionalRoots` need a CA bundle at one of the paths
+  NIOSSL searches; without one they throw `ClientTrustError.contextRejected` when the context is
+  built, with an empty reason, and `.onlyRoots` is unaffected. `SSL_CERT_FILE` is not consulted.
+  See *Connecting as a Client*. Key-file ownership and mode on Linux: see *Serving TLS*.
+
 ## [1.0.0] - 2026-11-14
 
 The first stable release. It is 1.0.0-beta.1 with one change: the minimum versions of the NIO
@@ -392,7 +431,8 @@ view and SwiftMCPClient, written once. Nothing has adopted it yet.
   script it replaced, with `cp`, is `0644` and will be refused until the next renewal
   rewrites it or it is `chmod 600`ed.
 
-[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0...HEAD
+[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.1...HEAD
+[1.0.1]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0-beta.1...1.0.0
 [1.0.0-beta.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.1...1.0.0-beta.1
 [0.2.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.0...0.2.1

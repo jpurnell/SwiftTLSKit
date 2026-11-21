@@ -46,7 +46,9 @@ written, tested and corrected in one place.
   `nonisolated(unsafe)`
 - **Platforms:** macOS 14+, iOS 17+, tvOS 17+, visionOS 1+. Tested on macOS arm64; both
   products built for generic iOS, tvOS and visionOS devices with `xcodebuild`. Built and tested
-  on Linux (x86_64 and arm64; Swift 6.2 and latest) by CI since 2026-11-11.
+  on Linux (x86_64 and arm64; Swift 6.2 and latest) by CI since 2026-11-11, and locally over ssh
+  with `scripts/linux-test.sh` (starscream.local: Ubuntu 26.04, x86_64, Swift 6.4.2 and 6.2.4, 203 tests;
+  1.0.1). Builds against Musl (x86_64, aarch64) as of 1.0.1; build-only, the static SDK has no `Testing`.
 - **Products:** `SwiftTLSKit` (the library) and `SwiftTLSKitTestSupport` (for consumers' test
   targets).
 - **Dependencies of `SwiftTLSKit`:** swift-nio 2.105.0+ (`NIOCore`, `NIOConcurrencyHelpers`,
@@ -247,7 +249,8 @@ The reasoning for each, and where the code forced a deviation from the first des
   - [x] `SeededGenerator` in `SwiftTLSKitTestSupport`
 - [x] **Readiness for 1.0, 2026-11-11 to 2026-11-13** (`project/plans/upcoming/SwiftTLSKit-1.0-readiness.md`):
   - [x] CI on Linux (x86_64, arm64; Swift 6.2 and latest), macOS, and iOS/tvOS/visionOS device
-    builds (PR #4). Linux needed no source change.
+    builds (PR #4). ~~Linux needed no source change.~~ That held for Glibc, the only libc CI built. Musl did
+    not compile (`IPAddressLiteral` named an `in6_addr` member that differs per libc); fixed in 1.0.1.
   - [x] Subject alternative names read from the DER, not NIOSSL's underscored API (PR #5)
   - [x] `ClientHandshakeFailure` reads the reason name as well as the number (PR #6)
   - [x] Independent security review: a fail-open in `isLoopback` for a host with a NUL byte,
@@ -295,7 +298,8 @@ The reasoning for each, and where the code forced a deviation from the first des
   A package that requires SwiftTLSKit `from: "1.0.0"` cannot resolve alongside a SwiftHTTPService that
   pins the beta exactly, so these have to move in that order.
 - [x] ~~Build and test on Linux, then declare it.~~ Done 2026-11-11 (PR #4): all four Linux jobs
-  green first time, 135 tests. The plan had expected failures to fix; there were none.
+  green first time, 135 tests. The plan had expected failures to fix; there were none. (Glibc only: see 1.0.1
+  for the Musl failure that CI did not build. The suite is 203 tests on Linux and 205 on macOS by 1.0.1.)
 
 ### Known limits
 - ~~Not built or tested on Linux.~~ Built and tested in CI (2026-11-11). One branch is still
@@ -493,7 +497,7 @@ freeze; the security review; documentation), and the review found more than the 
 
 ---
 
-**Last Updated:** 2026-11-14 (later), the move from exact pins to `from: "1.0.0"` recorded: done for five adopters, open for SwiftHTTPService and its dependents until its 1.0.0. Previous entry: 2026-11-14, 1.0.0 tagged (CHANGELOG section and link references; README install and a "Moving to 1.0" section; What's Next and Phase 5 ticked, with the adopters' move from `exact: "1.0.0-beta.1"` to `from: "1.0.0"` as the remaining item). Earlier the same day: 2026-11-14, all eleven adopters verified on the beta: Phase 2 table and findings, What's Next and the 1.0.0 criterion updated (IconquerClient released as `v0.3.0-beta.1`; IconquerServer, IconquerTournament and IconquerCLI verified after the Metal toolchain; swiftMoE's test changed). Earlier, 2026-11-13 (later), adopter results recorded: Target Users corrected (eleven packages depend on SwiftTLSKit, not seven: one of the seven was a duplicate checkout, and five were missed; the earlier "not in the workspace" was wrong and is struck through), What's Next with the 1.0.0 criterion's status, Phase 2 rewritten with the results table and findings. Earlier the same day, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
+**Last Updated:** 2026-11-21, 1.0.1 prepared: Linux verified locally over ssh (`scripts/linux-test.sh`, starscream.local), Musl IPv6 fix, zoned-literal rule, bare-box CA behaviour measured; Platforms, Current Status and the Linux line of Phase 5 reconciled ("Linux needed no source change" struck through: true for Glibc only), CHANGELOG 1.0.1 and link references, README, StabilityPolicy. Not re-audited: adopters' Linux builds (SwiftPenTest, SwiftPushHub, FleetWatch, SwiftDiagnosticsHub) and SwiftPenTest's resource-bundle behaviour on Linux. Previous entry: 2026-11-14 (later), the move from exact pins to `from: "1.0.0"` recorded: done for five adopters, open for SwiftHTTPService and its dependents until its 1.0.0. Previous entry: 2026-11-14, 1.0.0 tagged (CHANGELOG section and link references; README install and a "Moving to 1.0" section; What's Next and Phase 5 ticked, with the adopters' move from `exact: "1.0.0-beta.1"` to `from: "1.0.0"` as the remaining item). Earlier the same day: 2026-11-14, all eleven adopters verified on the beta: Phase 2 table and findings, What's Next and the 1.0.0 criterion updated (IconquerClient released as `v0.3.0-beta.1`; IconquerServer, IconquerTournament and IconquerCLI verified after the Metal toolchain; swiftMoE's test changed). Earlier, 2026-11-13 (later), adopter results recorded: Target Users corrected (eleven packages depend on SwiftTLSKit, not seven: one of the seven was a duplicate checkout, and five were missed; the earlier "not in the workspace" was wrong and is struck through), What's Next with the 1.0.0 criterion's status, Phase 2 rewritten with the results table and findings. Earlier the same day, 1.0.0-beta.1 tagged (CHANGELOG section and link references, status and What's Next ticked). Earlier the same day, reconciled for 1.0.0-beta.1 against the code on `main` after PRs #4–#8: Target Users (seven adopters read from their manifests; the rest marked unchecked), Technology Stack, module tree, type table, data flow, decisions 17–21 and 8, Current Status, What's Next (with the 1.0.0 criterion), Known limits (three struck, two added), Phase 2, new Phase 5. Also reconciled: `capability_map.md`. Not re-audited: the unchecked packages' current state. Before that: 2026-11-11, CI and Linux shipped (PR #4): Platforms, Known limits, What's Next and Future reconciled for Linux and CI only. Before that: 2026-10-09, 0.2.1 tagged (CHANGELOG section, link reference, README install line). Before that: 2026-10-09 — after 0.2.0, unreleased and intended as 0.2.1: the module tree,
 type table, decision 15, Current Status and Roadmap (new Phase 4) reconciled against
 `fix/loopback-reason-and-seeded-generator`, which adds `SeededGenerator` to the test-support
 product and corrects the stated reason for the leading-zero rule. The "Tested on macOS arm64"

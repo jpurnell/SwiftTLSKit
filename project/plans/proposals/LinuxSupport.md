@@ -31,7 +31,7 @@ So the real problem is not "make it build on Linux". It is:
 2. **Local tooling has nothing to run Linux with** (section 3.6).
 3. **A few Linux paths are unverified or probably broken** (Musl; running as non-root; system CA store on a bare
    box) and none is exercised locally.
-4. **The motivating consumer, SwiftPenTest, has never been built on Linux**, and its gaps are outside this repo
+4. **The motivating consumer, SwiftPenTest, had never been built on Linux** (corrected 2026-11-21: it builds, and its 11 tests pass, on starscream with no source change; its remaining gaps are outside this repo, in `SwiftPenTest/project/plans/proposals/LinuxSupport.md`)
    (section 7).
 
 This proposal therefore asks for a small amount of code (one probable portability fix and tests) and mostly a
@@ -313,11 +313,11 @@ Read from `SwiftPenTest/Package.swift` and `Sources/`:
 | swift-crypto, swift-certificates, swift-asn1 (transitive) | resolved; certificates/asn1 only link into tests | Yes |
 | swift-argument-parser (`swiftpentest` executable) | yes, Linux-supported upstream | **No** |
 | swift-docc-plugin | resolved, not built | n/a |
-| `PenTestCore` code | `import os` / `Logger` are guarded by `#if canImport(os)` (`PenTestRunner.swift:1,5,56`); `swiftpentest` imports Foundation | **No**; guards look correct but nobody has built it |
+| `PenTestCore` code | `import os` / `Logger` are guarded by `#if canImport(os)` (`PenTestRunner.swift:1,5,56`); `swiftpentest` imports Foundation | **No** (section 7 as written); **since built and tested on Linux, 2026-11-21**: builds, 11 tests pass, guards correct |
 | `PenTestCore` resources: `resources: [.copy("PenTestCore.docc")]` | SwiftPM generates a `Bundle.module` resource bundle that must sit beside the binary; behaviour on Linux when deployed as one file is **unverified** | **No**; flag to the owner |
 | `platforms: [.macOS(.v15)]` | harmless for Linux | n/a |
 | CA bundle on the target box (`ca-certificates`) | yes for `.systemRoots` | Documented in Step 4/6; the SwiftPenTest CLI may want a `--ca-file` or `--trust` option: **its** design |
-| SwiftPenTest has no `.github/workflows`, and no Linux run of any kind | n/a | Needs its own small proposal (est. 1 day): add the same `scripts/linux-test.sh`, build `swiftpentest` for Linux, decide dynamic vs static (Musl) deployment |
+| SwiftPenTest has no `.github/workflows`; ~~no Linux run of any kind~~ a debug build and test run on starscream passed 2026-11-21 | n/a | Its own proposal, written: `SwiftPenTest/project/plans/proposals/LinuxSupport.md` (release build, deploy shape, honest results on a bare box) |
 
 If a single static binary for a VPS is desired, the Musl fix (4.1) becomes a prerequisite for SwiftPenTest, not a
 nicety; that is the main reason it is in scope here.

@@ -260,6 +260,7 @@ The reasoning for each, and where the code forced a deviation from the first des
   - [x] `StabilityPolicy.md`; this reconciliation
   - [x] Tagged `1.0.0-beta.1`, 2026-11-13
   - [x] Tagged `1.0.0`, 2026-11-14
+  - [x] Tagged `1.0.1`, 2026-11-21 (Musl build fix, zoned-literal rule, local Linux verification; PR #14)
 
 ### What's Next
 - [x] ~~First adopter (see Roadmap, Phase 2). Nothing depends on this package yet.~~ — six

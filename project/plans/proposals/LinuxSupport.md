@@ -183,8 +183,10 @@ Note on versions: the Docker `swift:6.4.2` image existing is verified; that it b
    (`ClientTrust.swift:92`, `ContextConfigurationTests` "System roots leave the trust store at the platform
    default"). On Linux NIOSSL loads a CA file from well-known paths such as `/etc/ssl/certs/ca-certificates.crt`
    (from memory, **unverified**; no `swift-nio-ssl` checkout exists locally to read). A minimal image or VPS
-   without the `ca-certificates` package would find no roots, and every probe would report
-   `certificateNotTrusted`. SwiftPenTest on a cheap box hits this on day one. The fix is operational (install
+   without the `ca-certificates` package would find no roots. **Measured 2026-11-21 (starscream, bubblewrap):** the
+   prediction that every probe would report `certificateNotTrusted` was wrong; `.systemRoots` and `.additionalRoots`
+   throw `ClientTrustError.contextRejected(reason: "unknownError([])")` when the context is built, `.onlyRoots` works,
+   and NIOSSL ignores `SSL_CERT_FILE` (fixed search paths, resolved once). SwiftPenTest on a cheap box hits this on day one. The fix is operational (install
    `ca-certificates`), plus a test and doc, not a new API.
 4. **Timing assumptions in tests** (e.g. reload mtime resolution on ext4/overlayfs versus APFS) are not known to be
    a problem; they passed on GitHub's Linux. Unverified for a local overlay filesystem.

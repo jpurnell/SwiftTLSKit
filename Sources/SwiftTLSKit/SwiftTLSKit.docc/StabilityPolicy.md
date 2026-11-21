@@ -14,7 +14,8 @@ design notes and not an oversight.
   A new one may be added; one is never removed or reshaped in a 1.x release.
 - **The platforms.** macOS 14, iOS 17, tvOS 17 and visionOS 1, and Linux on x86_64 and arm64. The
   floor does not rise in 1.x. Linux is built and tested in CI with Swift 6.2 and the newest stable
-  toolchain.
+  toolchain, and can be verified locally with `scripts/linux-test.sh`. Builds against Musl are checked; the
+  suite is not run there.
 - **The safety rules.** Half an identity is an error and never plaintext. No case, flag or parameter
   disables certificate or hostname verification. Nothing read from a key file reaches an error, a
   description or a log. A host that is in any doubt is not loopback. A release that weakened one of

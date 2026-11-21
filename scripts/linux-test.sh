@@ -59,9 +59,15 @@ swift build --build-tests 2>&1 | quiet
 # shellcheck disable=SC2086
 swift test $EXTRA 2>&1 | quiet
 if [ "$MUSL" = "1" ]; then
-  echo "== musl: static Linux SDK ($(uname -m))"
-  SDK="$(uname -m)-swift-linux-musl"
-  swift build --swift-sdk "$SDK" --scratch-path .build-musl 2>&1 | quiet
+  # A static SDK is built by one compiler and can only be used by that compiler.
+  VERSION="$(swift --version 2>&1 | sed -n 's/.*Swift version \([0-9.]*\).*/\1/p' | head -1)"
+  if swift sdk list 2>&1 | grep -q "swift-${VERSION}-RELEASE_static-linux"; then
+    echo "== musl: static Linux SDK for ${VERSION} ($(uname -m))"
+    SDK="$(uname -m)-swift-linux-musl"
+    swift build --swift-sdk "$SDK" --scratch-path .build-musl 2>&1 | quiet
+  else
+    echo "== musl: skipped, no static Linux SDK installed for Swift ${VERSION}"
+  fi
 fi
 if [ "$NO_CA_STORE" = "1" ]; then
   echo "== bare box: /etc/ssl hidden from this process only"

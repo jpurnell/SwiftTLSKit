@@ -18,11 +18,12 @@
   The proposal had predicted `certificateNotTrusted` per probe; that was wrong.
 
 ## Verified
-Linux Glibc 203 tests (Swift 6.4.2; 6.2.4 ran 193 before the last vectors), macOS 205, bare-box 3
-(negative control fails as it should), Musl x86_64 and aarch64 build clean. Quality gate 51/51.
+Linux Glibc 203 tests on Swift 6.4.2 and on 6.2.4 (both after the final changes), macOS 205, bare-box 3
+on both toolchains (negative control fails as it should), Musl x86_64 and aarch64 build clean (6.4.2;
+the static SDK matches only its own compiler, so 6.2.4 skips with a message). Quality gate 51/51.
 
 ## Not verified / open
-- 6.2.4 not rerun after the final test additions; arm64 Linux not run at all (CI only).
+- arm64 Linux not run at all (CI only); Musl is not built with Swift 6.2.
 - Static SDK bundle installed from a download over HTTPS without a published checksum (swift.org
   lists 6.4.3 only); SHA-256 `3786b179936d9cc9e266dd506bd1654176358d7b25288e243359f4d17cc4dc5a`.
 - Bare-box variant "empty bundle file" not re-run with a real file (first attempt used /dev/null).

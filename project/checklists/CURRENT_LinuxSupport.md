@@ -6,7 +6,7 @@
 
 ---
 
-## Current Phase: Steps 1 and 4 done; next Step 2 (Musl RED, needs static SDK) then Step 3
+## Current Phase: Steps 1-4 done; next Step 6 (docs and 1.0.1 housekeeping)
 
 ### In Progress
 - [ ] Owner approves the proposal (trims applied 2026-11-21: Step 5 optional, Step 7 dropped, simpler IPv6 fix)
@@ -16,7 +16,7 @@
 - [x] Step 4: bare-box tests (`BareBoxTrustTests`) written and verified with `scripts/linux-test.sh --no-ca-store` (bubblewrap, no sudo). Findings: NIOSSL ignores `SSL_CERT_FILE`; with neither CA file nor directory, `.systemRoots` and `.additionalRoots` throw `ClientTrustError.contextRejected(reason: "unknownError([])")` at construction; `.onlyRoots` works. Negative control (env var set, store visible) fails the two refusal tests. Typed error already exists, so Q4 needs no API addition; only the empty reason text is unhelpful (candidate: a clearer reason string, not an API change)
 
 ### Blocked
-- [ ] Step 2 (Musl build) — *needs the static Linux SDK installed on starscream (also lets Musl tests actually run there); owner to approve*
+- none
 
 ---
 
@@ -32,15 +32,16 @@
 
 ## 1. Testing (RED)
 - [x] Step 1: `scripts/linux-test.sh` written; 6.4.2 non-root green (no failing test to write). Root and 6.2 runs outstanding
-- [ ] Step 2: Musl build RED — `swift build --swift-sdk {aarch64,x86_64}-swift-linux-musl` fails on `__in6_u` (confirm, do not assume)
-- [ ] Step 3 tests: IPv6 vectors written from RFC 5952 forms, not from function output: `::1`, `2001:db8::1`, `::ffff:192.0.2.1`, malformed, embedded NUL
+- [x] Step 2: Musl build RED confirmed 2026-11-21 on starscream with the 6.4.2 static SDK (SHA-256 of the bundle `3786b179936d9cc9e266dd506bd1654176358d7b25288e243359f4d17cc4dc5a`, downloaded over HTTPS; swift.org publishes a checksum for 6.4.3 only): `IPAddressLiteral.swift:40: value of type 'in6_addr' has no member '__in6_u'`. Only that file failed. Musl is build-only: the static SDK has no `Testing` module, so the suite cannot link
+- [x] Step 3 tests: IPv6 vectors by hand from RFC 4291/5952 (`::`, `2001:db8::1`, `1:2:3:4:5:6:7:8`, `::ffff:192.0.2.1`, eight malformed forms); NUL case already present
 - [x] Step 4 (see above; the original prediction that probes would report `certificateNotTrusted` was wrong)
 - [ ] Variant c (empty bundle file via a real temp file, not /dev/null) still to try
 - [ ] Deterministic seeds only (`TestSeed.swift`); no clock reads
 - [ ] `/evaluate-tests` >= 75 on all dimensions
 
 ## 2. Implementation (GREEN)
-- [ ] `IPAddressLiteral.ipv6Bytes`: `[UInt8]` x16 + `inet_pton(AF_INET6, literal, &bytes)`; delete `in6_addr` use and the `#if`
+- [x] `IPAddressLiteral.ipv6Bytes`: `[UInt8]` x16 + `inet_pton(AF_INET6, literal, &bytes)`; `in6_addr` use and the `#if` deleted
+- [x] Green: macOS 203 tests; Linux Glibc 201 (Swift 6.4.2 and 6.2.4 on 193 before the vectors; 6.4.2 rerun after); Musl x86_64 and aarch64 build clean, 0 warnings
 - [ ] Musl build now green; Glibc and macOS suites green
 - [ ] Commit at each green state
 
@@ -60,6 +61,9 @@
 - [ ] All tests pass on macOS and Linux (harness)
 - [ ] Final gate pass before declaring done
 
+## Findings needing an owner decision
+- [ ] **Zone suffix:** Darwin `inet_pton` accepts `fe80::1%eth0` as an address; Glibc rejects it (Musl unverified). Pre-existing, not introduced here. Uniform rejection would change macOS behaviour (and how a zoned literal reaches SNI), so it is left alone in 1.0.1; decide for 1.1.
+
 ## Optional / deferred
 - [ ] Step 5: consumer-style scratch package (low value)
 - [ ] Step 7: second environment (only if the runner is flaky)
@@ -67,4 +71,4 @@
 
 ---
 
-**Last Updated:** 2026-11-21 — Steps 1 and 4 done on starscream; gate 51/51; macOS 198 tests, Linux 193 + 3 bare-box
+**Last Updated:** 2026-11-21 — Steps 1-4 done; Musl IPv6 fix green on macOS, Glibc and Musl (x86_64, aarch64 build-only)

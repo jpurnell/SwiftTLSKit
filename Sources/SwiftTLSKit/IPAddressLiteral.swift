@@ -32,17 +32,12 @@ enum IPAddressLiteral {
 
     /// The sixteen bytes of an IPv6 literal in network order, or `nil` if `literal` is not one.
     static func ipv6Bytes(_ literal: String) -> [UInt8]? {
-        var address = in6_addr()
-        guard isWhole(literal), inet_pton(AF_INET6, literal, &address) == 1 else { return nil }
-        #if canImport(Darwin)
-        let octets = address.__u6_addr.__u6_addr8
-        #else
-        let octets = address.__in6_u.__u6_addr8
-        #endif
-        return [
-            octets.0, octets.1, octets.2, octets.3, octets.4, octets.5, octets.6, octets.7,
-            octets.8, octets.9, octets.10, octets.11, octets.12, octets.13, octets.14, octets.15,
-        ]
+        // `inet_pton` writes sixteen bytes in network order through a `void *`, so a sixteen-byte
+        // array is the destination on every libc. Reading them out of `in6_addr` instead would mean
+        // naming the union member, and Darwin, Glibc and Musl each name it differently.
+        var bytes = [UInt8](repeating: 0, count: 16)
+        guard isWhole(literal), inet_pton(AF_INET6, literal, &bytes) == 1 else { return nil }
+        return bytes
     }
 
     /// Whether `text` is an IPv4 or IPv6 address rather than a name.

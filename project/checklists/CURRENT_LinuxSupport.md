@@ -6,7 +6,7 @@
 
 ---
 
-## Current Phase: Step 6 done; gate, PR and tag remain
+## Current Phase: Step 6 done; PR open; tag after merge (then rename CHANGELOG [Unreleased] to [1.0.1] with the link reference)
 
 ### In Progress
 - [ ] Owner approves the proposal (trims applied 2026-11-21: Step 5 optional, Step 7 dropped, simpler IPv6 fix)

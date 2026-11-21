@@ -4,9 +4,8 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
-## [1.0.1] - 2026-11-21
-
-A fix so the package builds against Musl (a static Linux binary), a fix so that a zoned IPv6 literal
+Prepared as 1.0.1; it becomes the `[1.0.1]` section, with its date and link reference, when the tag is
+created. A fix so the package builds against Musl (a static Linux binary), a fix so that a zoned IPv6 literal
 means the same on every platform, and a way to verify Linux from a laptop. No public type,
 function or case changes.
 
@@ -431,8 +430,7 @@ view and SwiftMCPClient, written once. Nothing has adopted it yet.
   script it replaced, with `cp`, is `0644` and will be refused until the next renewal
   rewrites it or it is `chmod 600`ed.
 
-[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.1...HEAD
-[1.0.1]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0...1.0.1
+[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0...HEAD
 [1.0.0]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0-beta.1...1.0.0
 [1.0.0-beta.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.1...1.0.0-beta.1
 [0.2.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.0...0.2.1

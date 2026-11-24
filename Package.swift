@@ -47,7 +47,7 @@ let package = Package(
         // 4.x and pulled a consumer already on 4.5.0 back down to 3.15.1. Nothing used here —
         // `SHA256.hash(data:)` and, in the test-support product, P-256 keys — differs between
         // the two, and both ends of the range are built: see CHANGELOG.
-        .package(url: "https://github.com/apple/swift-crypto.git", "3.0.0"..<"5.0.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "5.1.2"),
         // For `SwiftTLSKitTestSupport` ONLY. Certificates and keys are generated when tests run,
         // so no private key is ever checked in. Absent from the `SwiftTLSKit` target on purpose:
         // a consumer of that product alone resolves these two and never builds or links them.

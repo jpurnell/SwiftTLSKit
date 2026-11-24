@@ -4,6 +4,11 @@ All notable changes to SwiftTLSKit will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-23
+
+### Changed
+- **swift-crypto minimum is now 5.1.2** (`from: "5.1.2"`; was `"3.0.0"..<"5.0.0"`, which excluded 5.x). A crypto release is usually a security fix, so the owner's rule is to stay current, and 5.1.2 is the newest release. **A package that depends on SwiftTLSKit 1.1.0 must itself allow swift-crypto 5.1.2 or later.** No source or public API change; the 205 tests pass on 5.1.2.
+
 ## [1.0.1] - 2026-11-21
 
 A fix so the package builds against Musl (a static Linux binary), a fix so that a zoned IPv6 literal
@@ -431,7 +436,8 @@ view and SwiftMCPClient, written once. Nothing has adopted it yet.
   script it replaced, with `cp`, is `0644` and will be refused until the next renewal
   rewrites it or it is `chmod 600`ed.
 
-[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.1...HEAD
+[Unreleased]: https://github.com/jpurnell/SwiftTLSKit/compare/1.1.0...HEAD
+[1.1.0]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.1...1.1.0
 [1.0.1]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/jpurnell/SwiftTLSKit/compare/1.0.0-beta.1...1.0.0
 [1.0.0-beta.1]: https://github.com/jpurnell/SwiftTLSKit/compare/0.2.1...1.0.0-beta.1

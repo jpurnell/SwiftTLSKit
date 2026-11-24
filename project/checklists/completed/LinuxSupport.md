@@ -6,7 +6,16 @@
 
 ---
 
-## Current Phase: Step 6 done; PR open; tag after merge (then rename CHANGELOG [Unreleased] to [1.0.1] with the link reference)
+## Current Phase: Done. Merged as PR #14, tagged `1.0.1` 2026-11-21. This checklist was never
+## marked closed at the time; closed out and moved to `completed/` 2026-11-24 during 1.1.0's
+## doc-housekeeping pass. Several boxes below were, and remain, unticked despite the release
+## shipping — recorded as what actually happened, not backfilled: "Owner approves the proposal"
+## and "Quality Gates: quality-gate 0/0, final gate pass" were never checked off in this file,
+## though the repository's pre-push hook enforces exactly that gate on every push and PR #14
+## merged, so the gate did pass — just not recorded here when it happened. The "optional" items
+## (Step 5 scratch package, Step 7 second environment, SwiftPenTest Linux as its own proposal)
+## are genuinely still open, not done; they were optional/deferred on purpose and nothing since
+## has picked them up.
 
 ### In Progress
 - [ ] Owner approves the proposal (trims applied 2026-11-21: Step 5 optional, Step 7 dropped, simpler IPv6 fix)
@@ -71,4 +80,6 @@
 
 ---
 
-**Last Updated:** 2026-11-21 — Steps 1-4 done; Musl IPv6 fix green on macOS, Glibc and Musl (x86_64, aarch64 build-only)
+**Last Updated:** 2026-11-24 — closed out during doc housekeeping for 1.1.0: shipped as `1.0.1`
+(PR #14, tagged 2026-11-21); moving to `project/checklists/completed/`. Previous entry: 2026-11-21 —
+Steps 1-4 done; Musl IPv6 fix green on macOS, Glibc and Musl (x86_64, aarch64 build-only)
